@@ -453,9 +453,8 @@ lsrRunPlaybooksParallel() {
     local skip_tags=$2
     local test_playbooks=$3
     local managed_nodes=$4
-    # NOTE: not sure what $5 is - false
+    local rolename_in_logfile=$5
     local verbosity="$6"
-    local rolename_in_logfile
     local role_name test_playbooks_arr
 
     read -ra test_playbooks_arr <<< "$test_playbooks"
