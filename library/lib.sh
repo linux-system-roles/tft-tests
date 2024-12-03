@@ -23,7 +23,9 @@ lsrLabBosRepoWorkaround() {
 
 lsrInstallAnsible() {
     # Hardcode to the only supported version on later ELs
-    if rlIsRHELLike 8 && [ "$ANSIBLE_VER" == "2.9" ]; then
+    if rlIsFedora '>=41'; then
+        PYTHON_VERSION=3.13
+    elif rlIsRHELLike 8 && [ "$ANSIBLE_VER" == "2.9" ]; then
         PYTHON_VERSION=3.9
     elif rlIsRHELLike 8 && [ "$ANSIBLE_VER" != "2.9" ]; then
         # CentOS-8 supports either 2.9 or 2.16
