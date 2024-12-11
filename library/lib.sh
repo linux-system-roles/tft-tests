@@ -542,38 +542,64 @@ lsrDiskProvisionerRequired() {
     return 1
 }
 
-lsrGenerateTestDisks() {
-    local tests_path=$1
-    local provisionfmf="$tests_path"/provision.fmf
-    local disk_provisioner_script=disk_provisioner.sh
-    local identity_file_arg=""
-    local disk_provisioner_dir control_node_name control_node_key node_ip ssh_cmd
-    if ! lsrDiskProvisionerRequired "$tests_path"; then
-        return 0
-    fi
-    managed_nodes=$(lsrGetManagedNodes "$guests_yml")
+lsrGetIdentityFile() {
+    guests_yml=$1
+    tmt_tree_provision=$2
+    local is_virtual control_node_name control_node_key
+
     is_virtual=$(lsrIsVirtual "$tmt_tree_provision")
     if [ "$is_virtual" -eq 0 ]; then
         control_node_name=$(lsrGetNodeName "$guests_yml" "control-node")
         control_node_key=$(lsrGetNodeKeyPrivate "$guests_yml" "$control_node_name")
-        identity_file_arg="-i $control_node_key"
+        echo "-i $control_node_key"
     fi
+}
+
+lsrCopyToNode() {
+    local node=$1
+    local cp_files=$2
+    local dest_path=$3
+    local guests_yml=$4
+    local tmt_tree_provision=$5
+    local identity_file_arg node_ip
+    identity_file_arg=$(lsrGetIdentityFile "$guests_yml" "$tmt_tree_provision")
+    node_ip=$(lsrGetNodeIp "$guests_yml" "$node")
+    rlRun "scp $identity_file_arg -o StrictHostKeyChecking=no $cp_files root@$node_ip:$dest_path"
+}
+
+lsrExecuteOnNode() {
+    local node=$1
+    local cmd=$2
+    local guests_yml=$3
+    local tmt_tree_provision=$4
+    local identity_file_arg node_ip
+    identity_file_arg=$(lsrGetIdentityFile "$guests_yml" "$tmt_tree_provision")
+    node_ip=$(lsrGetNodeIp "$guests_yml" "$node")
+    rlRun "ssh $identity_file_arg -o StrictHostKeyChecking=no root@$node_ip \"$cmd\""
+}
+
+lsrGenerateTestDisks() {
+    local tests_path=$1
+    local provisionfmf="$tests_path"/provision.fmf
+    local disk_provisioner_script=disk_provisioner.sh
+    local disk_provisioner_dir
+    if ! lsrDiskProvisionerRequired "$tests_path"; then
+        return 0
+    fi
+    managed_nodes=$(lsrGetManagedNodes "$guests_yml")
     for managed_node in $managed_nodes; do
-        node_ip=$(lsrGetNodeIp "$guests_yml" "$managed_node")
-        ssh_cmd="ssh $identity_file_arg -o StrictHostKeyChecking=no root@$node_ip"
-        rlRun "available=$($ssh_cmd 'df -k /tmp --output=avail | tail -1')"
-        # available is defined above
-        # shellcheck disable=SC2154
+        available=$(lsrExecuteOnNode "$managed_node" "df -k /tmp --output=avail | tail -1" "$guests_yml" "$tmt_tree_provision")
+        rlLog "Available disk space: $available"
         if [ "$available" -gt 10485760 ]; then
             disk_provisioner_dir=/tmp/disk_provisioner
         else
             disk_provisioner_dir=/var/tmp/disk_provisioner
         fi
-        rlRun "scp $identity_file_arg -o StrictHostKeyChecking=no $disk_provisioner_script $provisionfmf root@$node_ip:/tmp/"
-        rlRun "$ssh_cmd \"WORK_DIR=$disk_provisioner_dir FMF_DIR=/tmp/ /tmp/$disk_provisioner_script start\""
+        lsrCopyToNode "$managed_node" "$disk_provisioner_script $provisionfmf" "/tmp/" "$guests_yml" "$tmt_tree_provision"
+        lsrExecuteOnNode "$managed_node" "WORK_DIR=$disk_provisioner_dir FMF_DIR=/tmp/ /tmp/$disk_provisioner_script start" "$guests_yml" "$tmt_tree_provision"
         # Ensure that a new devices really exists
-        rlRun "$ssh_cmd \"fdisk -l | grep 'Disk /dev/'\""
-        rlRun "$ssh_cmd \"lsblk -l | cut -d\  -f1 | grep -v NAME | sed 's/^/\/dev\//' | xargs ls -l\""
+        lsrExecuteOnNode "$managed_node" "fdisk -l | grep 'Disk /dev/'" "$guests_yml" "$tmt_tree_provision"
+        lsrExecuteOnNode "$managed_node" "lsblk -l | cut -d\  -f1 | grep -v NAME | sed 's/^/\/dev\//' | xargs ls -l" "$guests_yml" "$tmt_tree_provision"
     done
 }
 
