@@ -590,12 +590,17 @@ lsrExecuteOnNode() {
 
 lsrGenerateTestDisks() {
     local tests_path=$1
+    local action=$2
     local provisionfmf="$tests_path"/provision.fmf
     local disk_provisioner_script=disk_provisioner.sh
     local disk_provisioner_dir
     if ! lsrDiskProvisionerRequired "$tests_path"; then
         return 0
     fi
+    if [ "$action" != start ] && [ "$action" != stop ]; then
+        rlDie "With lsrGenerateTestDisks, action must be either start or stop. Provided action: $action"
+    fi
+
     managed_nodes=$(lsrGetManagedNodes "$guests_yml")
     for managed_node in $managed_nodes; do
         available=$(lsrExecuteOnNode "$managed_node" "df -k /tmp --output=avail | tail -1" "$guests_yml" "$tmt_tree_provision")
@@ -606,7 +611,7 @@ lsrGenerateTestDisks() {
             disk_provisioner_dir=/var/tmp/disk_provisioner
         fi
         lsrCopyToNode "$managed_node" "$disk_provisioner_script $provisionfmf" "/tmp/" "$guests_yml" "$tmt_tree_provision"
-        lsrExecuteOnNode "$managed_node" "WORK_DIR=$disk_provisioner_dir FMF_DIR=/tmp/ /tmp/$disk_provisioner_script start" "$guests_yml" "$tmt_tree_provision"
+        lsrExecuteOnNode "$managed_node" "WORK_DIR=$disk_provisioner_dir FMF_DIR=/tmp/ /tmp/$disk_provisioner_script $action" "$guests_yml" "$tmt_tree_provision"
         # Ensure that a new devices really exists
         lsrExecuteOnNode "$managed_node" "fdisk -l | grep 'Disk /dev/'" "$guests_yml" "$tmt_tree_provision"
         lsrExecuteOnNode "$managed_node" "lsblk -l | cut -d\  -f1 | grep -v NAME | sed 's/^/\/dev\//' | xargs ls -l" "$guests_yml" "$tmt_tree_provision"
