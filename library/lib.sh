@@ -571,10 +571,28 @@ lsrCopyToNode() {
     local dest_path=$3
     local guests_yml=$4
     local tmt_tree_provision=$5
-    local identity_file_arg node_ip
-    identity_file_arg=$(lsrGetIdentityFile "$guests_yml" "$tmt_tree_provision")
+    local execute_with_rlrun=$6
+    local print_out=$7
+    local identity_file_args node_ip scp_cmd
+    identity_file_args=$(lsrGetIdentityFile "$guests_yml" "$tmt_tree_provision")
     node_ip=$(lsrGetNodeIp "$guests_yml" "$node")
-    rlRun "scp $identity_file_arg -o StrictHostKeyChecking=no $cp_files root@$node_ip:$dest_path"
+    # Passing some variables without quotes to avoid shell considering them a single argument
+    # shellcheck disable=SC2206
+    scp_cmd=(scp $identity_file_args -o StrictHostKeyChecking=no $cp_files root@"$node_ip":"$dest_path")
+    if [ "$execute_with_rlrun" == false ]; then
+        if [ "$print_out" == false ]; then
+            "${scp_cmd[@]}" > /dev/null 2>&1
+        else
+            "${scp_cmd[@]}"
+        fi
+    else
+        if [ "$print_out" == false ]; then
+            # not sure if it works, it's not used anywhere
+            rlRun "${scp_cmd[@]} > /dev/null 2>&1"
+        else
+            rlRun "${scp_cmd[@]}"
+        fi
+    fi
 }
 
 lsrExecuteOnNode() {
@@ -582,10 +600,28 @@ lsrExecuteOnNode() {
     local cmd=$2
     local guests_yml=$3
     local tmt_tree_provision=$4
-    local identity_file_arg node_ip
-    identity_file_arg=$(lsrGetIdentityFile "$guests_yml" "$tmt_tree_provision")
+    local execute_with_rlrun=$5
+    local print_out=$6
+    local identity_file_args node_ip ssh_cmd
+    identity_file_args=$(lsrGetIdentityFile "$guests_yml" "$tmt_tree_provision")
     node_ip=$(lsrGetNodeIp "$guests_yml" "$node")
-    rlRun "ssh $identity_file_arg -o StrictHostKeyChecking=no root@$node_ip \"$cmd\""
+    # Passing identity_file_args without quotes to avoid shell considering it a single argument
+    # shellcheck disable=SC2206
+    ssh_cmd=(ssh $identity_file_args -o StrictHostKeyChecking=no root@"$node_ip" "$cmd")
+    if [ "$execute_with_rlrun" == false ]; then
+        if [ "$print_out" == false ]; then
+            "${ssh_cmd[@]}" > /dev/null 2>&1
+        else
+            "${ssh_cmd[@]}"
+        fi
+    else
+        if [ "$print_out" == false ]; then
+            # not sure if it works, it's not used anywhere
+            rlRun "${ssh_cmd[@]} > /dev/null 2>&1"
+        else
+            rlRun "${ssh_cmd[@]}"
+        fi
+    fi
 }
 
 lsrGenerateTestDisks() {
@@ -603,18 +639,22 @@ lsrGenerateTestDisks() {
 
     managed_nodes=$(lsrGetManagedNodes "$guests_yml")
     for managed_node in $managed_nodes; do
-        available=$(lsrExecuteOnNode "$managed_node" "df -k /tmp --output=avail | tail -1" "$guests_yml" "$tmt_tree_provision")
+        available=$(lsrExecuteOnNode "$managed_node" "df -k /tmp --output=avail | tail -1" "$guests_yml" "$tmt_tree_provision" "false" "true")
         rlLog "Available disk space: $available"
         if [ "$available" -gt 10485760 ]; then
             disk_provisioner_dir=/tmp/disk_provisioner
         else
             disk_provisioner_dir=/var/tmp/disk_provisioner
         fi
-        lsrCopyToNode "$managed_node" "$disk_provisioner_script $provisionfmf" "/tmp/" "$guests_yml" "$tmt_tree_provision"
-        lsrExecuteOnNode "$managed_node" "WORK_DIR=$disk_provisioner_dir FMF_DIR=/tmp/ /tmp/$disk_provisioner_script $action" "$guests_yml" "$tmt_tree_provision"
-        # Ensure that a new devices really exists
-        lsrExecuteOnNode "$managed_node" "fdisk -l | grep 'Disk /dev/'" "$guests_yml" "$tmt_tree_provision"
-        lsrExecuteOnNode "$managed_node" "lsblk -l | cut -d\  -f1 | grep -v NAME | sed 's/^/\/dev\//' | xargs ls -l" "$guests_yml" "$tmt_tree_provision"
+        lsrCopyToNode "$managed_node" "$disk_provisioner_script $provisionfmf" "/tmp/" "$guests_yml" \
+            "$tmt_tree_provision" "false" "false"
+        lsrExecuteOnNode "$managed_node" \
+            "WORK_DIR=$disk_provisioner_dir FMF_DIR=/tmp/ /tmp/$disk_provisioner_script $action" \
+            "$guests_yml" "$tmt_tree_provision" "false" "false"
+        # Print devices
+        lsrExecuteOnNode "$managed_node" "fdisk -l | grep 'Disk /dev/'" "$guests_yml" "$tmt_tree_provision" "false" "false"
+        lsrExecuteOnNode "$managed_node" "lsblk -l | cut -d\  -f1 | grep -v NAME | sed 's/^/\/dev\//' | xargs ls -l" \
+            "$guests_yml" "$tmt_tree_provision" "false" "false"
     done
 }
 
