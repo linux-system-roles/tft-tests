@@ -400,14 +400,14 @@ lsrRunPlaybook() {
     local LOGFILE=$5
     local verbosity="$6"
     local result=FAIL
-    local cmd log_msg
-    local role_name
+    local cmd log_msg role_name playbook_basename
     role_name=$(lsrGetRoleNameFromTestPlaybook "$test_playbook")
+    playbook_basename=$(basename "$test_playbook")
     if [ "${GET_PYTHON_MODULES:-}" = true ]; then
         ANSIBLE_ENVS[ANSIBLE_DEBUG]=true
     fi
     cmd="$(lsrArrtoStr ANSIBLE_ENVS) ansible-playbook -i $inventory $skip_tags $limit $test_playbook $verbosity"
-    log_msg="Test $test_playbook with ANSIBLE-$ANSIBLE_VER on ${limit/--limit /}"
+    log_msg="Test $role_name/$playbook_basename with ANSIBLE-$ANSIBLE_VER on ${limit/--limit /}"
     # If LSR_TFT_DEBUG is true, print output to terminal
     if [ "$LSR_TFT_DEBUG" == true ] || [ "$LSR_TFT_DEBUG" == True ]; then
         rlRun "ANSIBLE_LOG_PATH=$LOGFILE $cmd && result=SUCCESS" 0 "$log_msg"
