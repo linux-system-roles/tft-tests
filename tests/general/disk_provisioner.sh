@@ -75,8 +75,8 @@ setup()
 	fi
 
 	# Save iSCSI target config
-	if ! which targetcli; then
-    	yum install targetcli -y
+	if ! type -p targetcli; then
+			yum install targetcli -y
 	fi
 
 	targetcli / saveconfig savefile="${WORK_DIR}"/target_backup.json
@@ -111,7 +111,11 @@ cleanup()
 	# Restore iSCSI target config
 	targetcli / restoreconfig savefile="${WORK_DIR}"/target_backup.json clear_existing=true
 
-	rm -rf "${WORK_DIR}"
+	rm -rf "${WORK_DIR}" "$FMF_DIR"/provision.fmf
+
+	if type -p targetcli; then
+			yum remove targetcli -y
+	fi
 
 	return 0
 }
