@@ -627,8 +627,8 @@ lsrExecuteOnNode() {
 lsrGenerateTestDisks() {
     local tests_path=$1
     local action=$2
+    local disk_provisioner_script=$3
     local provisionfmf="$tests_path"/provision.fmf
-    local disk_provisioner_script=disk_provisioner.sh
     local disk_provisioner_dir
     if ! lsrDiskProvisionerRequired "$tests_path"; then
         return 0
@@ -649,12 +649,15 @@ lsrGenerateTestDisks() {
         lsrCopyToNode "$managed_node" "$disk_provisioner_script $provisionfmf" "/tmp/" "$guests_yml" \
             "$tmt_tree_provision" "false" "false"
         lsrExecuteOnNode "$managed_node" \
+            "chmod +x /tmp/$disk_provisioner_script" \
+            "$guests_yml" "$tmt_tree_provision" "false" "false"
+        lsrExecuteOnNode "$managed_node" \
             "WORK_DIR=$disk_provisioner_dir FMF_DIR=/tmp/ /tmp/$disk_provisioner_script $action" \
             "$guests_yml" "$tmt_tree_provision" "false" "false"
         # Print devices
-        lsrExecuteOnNode "$managed_node" "fdisk -l | grep 'Disk /dev/'" "$guests_yml" "$tmt_tree_provision" "false" "false"
-        lsrExecuteOnNode "$managed_node" "lsblk -l | cut -d\  -f1 | grep -v NAME | sed 's/^/\/dev\//' | xargs ls -l" \
-            "$guests_yml" "$tmt_tree_provision" "false" "false"
+        # lsrExecuteOnNode "$managed_node" "fdisk -l | grep 'Disk /dev/'" "$guests_yml" "$tmt_tree_provision" "false" "true"
+        # lsrExecuteOnNode "$managed_node" "lsblk -l | cut -d\  -f1 | grep -v NAME | sed 's/^/\/dev\//' | xargs ls -l" \
+        #     "$guests_yml" "$tmt_tree_provision" "false" "true"
     done
 }
 

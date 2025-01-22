@@ -77,7 +77,7 @@ rlJournalStart
         # role_path is defined in lsrGetRoleDir
         # shellcheck disable=SC2154
         legacy_test_path="$role_path"/tests
-        lsrGenerateTestDisks "$legacy_test_path" start
+        lsrGenerateTestDisks "$legacy_test_path" start disk_provisioner.sh
         test_playbooks=$(lsrGetTests "$legacy_test_path")
         rlLogInfo "Test playbooks: $test_playbooks"
         for test_playbook in $test_playbooks; do
