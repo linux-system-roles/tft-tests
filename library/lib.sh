@@ -259,12 +259,14 @@ lsrConvertToCollection() {
 
 lsrGetManagedNodes() {
     local guests_yml=$1
-    sed --quiet --regexp-extended 's/(^managed.*):$/\1/p' "$guests_yml" | sort
+    # xargs to return space-separated string
+    sed --quiet --regexp-extended 's/(^managed.*):$/\1/p' "$guests_yml" | sort | xargs
 }
 
 lsrGetNodes() {
     local guests_yml=$1
-    sed --quiet --regexp-extended 's/(^[^ ]*):$/\1/p' "$guests_yml" | sort
+    # xargs to return space-separated string
+    sed --quiet --regexp-extended 's/(^[^ ]*):$/\1/p' "$guests_yml" | sort | xargs
 }
 
 lsrGetNodeName() {
@@ -397,14 +399,14 @@ lsrRunPlaybook() {
     local limit=$4
     local LOGFILE=$5
     local result=FAIL
-    local cmd log_msg
-    local role_name
-    role_name=$(lsrGetRoleName "$test_playbook")
+    local cmd log_msg role_name playbook_basename
+    role_name=$(lsrGetRoleNameFromTestPlaybook "$test_playbook")
+    playbook_basename=$(basename "$test_playbook")
     if [ "${GET_PYTHON_MODULES:-}" = true ]; then
         ANSIBLE_ENVS[ANSIBLE_DEBUG]=true
     fi
     cmd="$(lsrArrtoStr ANSIBLE_ENVS) ansible-playbook -i $inventory $skip_tags $limit $test_playbook -vv"
-    log_msg="Test $test_playbook with ANSIBLE-$ANSIBLE_VER on ${limit/--limit /}"
+    log_msg="Test $role_name/$playbook_basename with ANSIBLE-$ANSIBLE_VER on ${limit/--limit /}"
     # If LSR_TFT_DEBUG is true, print output to terminal
     if [ "$LSR_TFT_DEBUG" == true ] || [ "$LSR_TFT_DEBUG" == True ]; then
         rlRun "ANSIBLE_LOG_PATH=$LOGFILE $cmd && result=SUCCESS" 0 "$log_msg"
@@ -424,17 +426,23 @@ lsrRunPlaybook() {
     fi
 }
 
-lsrGetRoleName() {
-    local test_playbook=$1
-    local parent_dir_abs parent_dir role_dir_abs
-    parent_dir_abs=$(dirname "$test_playbook")
-    parent_dir="${parent_dir_abs##*/}"
-    if [ "$parent_dir" = tests ]; then # legacy role format
-        role_dir_abs=$(dirname "$parent_dir_abs")
-        echo "${role_dir_abs##*.}"
+lsrGetRoleNameFromTestsPath() {
+    local tests_path=$1
+    local test_dir role_dir_abs
+    test_dir=$(basename "$tests_path")
+    if [ "$test_dir" = tests ]; then # legacy role format
+        role_dir_abs=$(dirname "$tests_path")
+        basename "$role_dir_abs"
     else # collection format
-        echo "$parent_dir"
+        echo "$test_dir"
     fi
+}
+
+lsrGetRoleNameFromTestPlaybook() {
+    local test_playbook=$1
+    local tests_path
+    tests_path=$(dirname "$test_playbook")
+    lsrGetRoleNameFromTestsPath "$tests_path"
 }
 
 lsrRunPlaybooksParallel() {
@@ -444,7 +452,7 @@ lsrRunPlaybooksParallel() {
     local skip_tags=$2
     local test_playbooks=$3
     local managed_nodes=$4
-    local rolename_in_logfile
+    local rolename_in_logfile=$5
     local role_name test_playbooks_arr
 
     read -ra test_playbooks_arr <<< "$test_playbooks"
@@ -455,7 +463,7 @@ lsrRunPlaybooksParallel() {
                 test_playbooks_arr=("${test_playbooks_arr[@]:1}") # Remove first element from array
                 playbook_basename=$(basename "$test_playbook")
                 if [ "$rolename_in_logfile" == true ] || [ "$rolename_in_logfile" == True ]; then
-                    role_name=$(lsrGetRoleName "$test_playbook")
+                    role_name=$(lsrGetRoleNameFromTestPlaybook "$test_playbook")
                     LOGFILE="$role_name"-"${playbook_basename%.*}"-ANSIBLE-"$ANSIBLE_VER"-$tmt_plan
                 else
                     LOGFILE="${playbook_basename%.*}"-ANSIBLE-"$ANSIBLE_VER"-$tmt_plan
@@ -561,10 +569,18 @@ lsrCopyToNode() {
     local dest_path=$3
     local guests_yml=$4
     local tmt_tree_provision=$5
-    local identity_file_arg node_ip
-    identity_file_arg=$(lsrGetIdentityFile "$guests_yml" "$tmt_tree_provision")
+    local print_out=$6
+    local identity_file_args node_ip scp_cmd
+    identity_file_args=$(lsrGetIdentityFile "$guests_yml" "$tmt_tree_provision")
     node_ip=$(lsrGetNodeIp "$guests_yml" "$node")
-    rlRun "scp $identity_file_arg -o StrictHostKeyChecking=no $cp_files root@$node_ip:$dest_path"
+    # Passing some variables without quotes to avoid shell considering them a single argument
+    # shellcheck disable=SC2206
+    scp_cmd=(scp $identity_file_args -o StrictHostKeyChecking=no $cp_files root@"$node_ip":"$dest_path")
+    if [ "$print_out" == false ]; then
+        "${scp_cmd[@]}" > /dev/null 2>&1
+    else
+        "${scp_cmd[@]}"
+    fi
 }
 
 lsrExecuteOnNode() {
@@ -572,34 +588,53 @@ lsrExecuteOnNode() {
     local cmd=$2
     local guests_yml=$3
     local tmt_tree_provision=$4
-    local identity_file_arg node_ip
-    identity_file_arg=$(lsrGetIdentityFile "$guests_yml" "$tmt_tree_provision")
+    local print_out=$5
+    local identity_file_args node_ip ssh_cmd
+    identity_file_args=$(lsrGetIdentityFile "$guests_yml" "$tmt_tree_provision")
     node_ip=$(lsrGetNodeIp "$guests_yml" "$node")
-    rlRun "ssh $identity_file_arg -o StrictHostKeyChecking=no root@$node_ip \"$cmd\""
+    # Passing identity_file_args without quotes to avoid shell considering it a single argument
+    # shellcheck disable=SC2206
+    ssh_cmd=(ssh $identity_file_args -o StrictHostKeyChecking=no root@"$node_ip" "$cmd")
+    if [ "$print_out" == false ]; then
+        "${ssh_cmd[@]}" > /dev/null 2>&1
+    else
+        "${ssh_cmd[@]}"
+    fi
 }
 
 lsrGenerateTestDisks() {
     local tests_path=$1
+    local action=$2
+    local disk_provisioner_script=$3
     local provisionfmf="$tests_path"/provision.fmf
-    local disk_provisioner_script=disk_provisioner.sh
     local disk_provisioner_dir
     if ! lsrDiskProvisionerRequired "$tests_path"; then
         return 0
     fi
+    if [ "$action" != start ] && [ "$action" != stop ]; then
+        rlDie "With lsrGenerateTestDisks, action must be either start or stop. Provided action: $action"
+    fi
+
     managed_nodes=$(lsrGetManagedNodes "$guests_yml")
     for managed_node in $managed_nodes; do
-        available=$(lsrExecuteOnNode "$managed_node" "df -k /tmp --output=avail | tail -1" "$guests_yml" "$tmt_tree_provision")
-        rlLog "Available disk space: $available"
+        available=$(lsrExecuteOnNode "$managed_node" "df -k /tmp --output=avail | tail -1" "$guests_yml" "$tmt_tree_provision" "true")
+        # rlLog "Available disk space: $available"
         if [ "$available" -gt 10485760 ]; then
             disk_provisioner_dir=/tmp/disk_provisioner
         else
             disk_provisioner_dir=/var/tmp/disk_provisioner
         fi
-        lsrCopyToNode "$managed_node" "$disk_provisioner_script $provisionfmf" "/tmp/" "$guests_yml" "$tmt_tree_provision"
-        lsrExecuteOnNode "$managed_node" "WORK_DIR=$disk_provisioner_dir FMF_DIR=/tmp/ /tmp/$disk_provisioner_script start" "$guests_yml" "$tmt_tree_provision"
-        # Ensure that a new devices really exists
-        lsrExecuteOnNode "$managed_node" "fdisk -l | grep 'Disk /dev/'" "$guests_yml" "$tmt_tree_provision"
-        lsrExecuteOnNode "$managed_node" "lsblk -l | cut -d\  -f1 | grep -v NAME | sed 's/^/\/dev\//' | xargs ls -l" "$guests_yml" "$tmt_tree_provision"
+        lsrCopyToNode "$managed_node" "$disk_provisioner_script $provisionfmf" "/tmp/" "$guests_yml" \
+            "$tmt_tree_provision" "false"
+        lsrExecuteOnNode "$managed_node" \
+            "chmod +x /tmp/$disk_provisioner_script" \
+            "$guests_yml" "$tmt_tree_provision" "false"
+        lsrExecuteOnNode "$managed_node" \
+            "WORK_DIR=$disk_provisioner_dir FMF_DIR=/tmp/ /tmp/$disk_provisioner_script $action" \
+            "$guests_yml" "$tmt_tree_provision" "false"
+        # Print devices
+        lsrExecuteOnNode "$managed_node" "echo $managed_node ; fdisk -l | grep 'Disk /dev/' ; lsblk -l | cut -d\  -f1 | grep -v NAME | sed 's/^/\/dev\//' | xargs ls -l" \
+            "$guests_yml" "$tmt_tree_provision" "true"
     done
 }
 
