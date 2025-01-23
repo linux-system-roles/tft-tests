@@ -111,7 +111,7 @@ cleanup()
 	# Restore iSCSI target config
 	targetcli / restoreconfig savefile="${WORK_DIR}"/target_backup.json clear_existing=true
 
-	rm -rf "${WORK_DIR}" "$FMF_DIR"/provision.fmf
+	rm -rf "${WORK_DIR}"
 
 	if type -p targetcli; then
 			yum remove targetcli -y
