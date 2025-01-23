@@ -620,7 +620,7 @@ lsrGenerateTestDisks() {
     managed_nodes=$(lsrGetManagedNodes "$guests_yml")
     for managed_node in $managed_nodes; do
         available=$(lsrExecuteOnNode "$managed_node" "df -k /tmp --output=avail | tail -1" "$guests_yml" "$tmt_tree_provision" "true")
-        rlLog "Available disk space: $available"
+        # rlLog "Available disk space: $available"
         if [ "$available" -gt 10485760 ]; then
             disk_provisioner_dir=/tmp/disk_provisioner
         else
@@ -635,9 +635,8 @@ lsrGenerateTestDisks() {
             "WORK_DIR=$disk_provisioner_dir FMF_DIR=/tmp/ /tmp/$disk_provisioner_script $action" \
             "$guests_yml" "$tmt_tree_provision" "false"
         # Print devices
-        # lsrExecuteOnNode "$managed_node" "fdisk -l | grep 'Disk /dev/'" "$guests_yml" "$tmt_tree_provision" "true"
-        # lsrExecuteOnNode "$managed_node" "lsblk -l | cut -d\  -f1 | grep -v NAME | sed 's/^/\/dev\//' | xargs ls -l" \
-        #     "$guests_yml" "$tmt_tree_provision" ""true"
+        lsrExecuteOnNode "$managed_node" "echo $managed_node ; fdisk -l | grep 'Disk /dev/' ; lsblk -l | cut -d\  -f1 | grep -v NAME | sed 's/^/\/dev\//' | xargs ls -l" \
+            "$guests_yml" "$tmt_tree_provision" "true"
     done
 }
 
