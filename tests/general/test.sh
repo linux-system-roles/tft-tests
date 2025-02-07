@@ -39,7 +39,7 @@ GITHUB_ORG="${GITHUB_ORG:-linux-system-roles}"
 PYTHON_VERSION="${PYTHON_VERSION:-3.12}"
 # SKIP_TAGS
 #   Ansible tags that must be skipped
-SKIP_TAGS="--skip-tags tests::nvme,tests::infiniband,tests::mac"
+SKIP_TAGS="--skip-tags tests::nvme,tests::infiniband"
 # LSR_TFT_DEBUG
 #   Print output of ansible playbooks to terminal in addition to printing it to logfile
 if [ "$(echo "$SYSTEM_ROLES_ONLY_TESTS" | wc -w)" -eq 1 ]; then
