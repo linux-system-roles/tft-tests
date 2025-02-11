@@ -55,6 +55,8 @@ ANSIBLE_GATHERING="${ANSIBLE_GATHERING:-implicit}"
 # REQUIRED_VARS
 #   Env variables required by this test
 REQUIRED_VARS=("ANSIBLE_VER" "REPO_NAME")
+# LSR_ANSIBLE_VERBOSITY
+#   Default is "-vv" - user can locally edit tft.yml in role to increase this for debugging
 
 rlJournalStart
     rlPhaseStartSetup
@@ -101,6 +103,6 @@ rlJournalStart
     rlPhaseEnd
     rlPhaseStartTest
         managed_nodes=$(lsrGetManagedNodes "$guests_yml")
-        lsrRunPlaybooksParallel "$inventory" "$SKIP_TAGS" "$test_playbooks" "$managed_nodes" "false"
+        lsrRunPlaybooksParallel "$inventory" "$SKIP_TAGS" "$test_playbooks" "$managed_nodes" "false" "${LSR_ANSIBLE_VERBOSITY:--vv}"
     rlPhaseEnd
 rlJournalEnd

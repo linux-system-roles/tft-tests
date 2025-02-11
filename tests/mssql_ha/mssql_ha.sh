@@ -58,6 +58,8 @@ ANSIBLE_GATHERING="${ANSIBLE_GATHERING:-implicit}"
 # REQUIRED_VARS
 #   Env variables required by this test
 REQUIRED_VARS=("ANSIBLE_VER")
+# LSR_ANSIBLE_VERBOSITY
+#   Default is "-vv" - user can locally edit tft.yml in role to increase this for debugging
 
 rlJournalStart
     rlPhaseStartSetup
@@ -140,9 +142,9 @@ rlJournalStart
                 # shellcheck disable=SC2154
                 LOGFILE="${test_playbook_basename%.*}"-ANSIBLE-"$ANSIBLE_VER"-"$tmt_plan"-"$mssql_version"
                 if [ "$test_playbook_basename" = "tests_configure_ha_cluster_external.yml" ]; then
-                    lsrRunPlaybook "$test_playbook" "$inventory_external" "$SKIP_TAGS" "" "$LOGFILE"
+                    lsrRunPlaybook "$test_playbook" "$inventory_external" "$SKIP_TAGS" "" "$LOGFILE" "${LSR_ANSIBLE_VERBOSITY:--vv}"
                 elif [ "$test_playbook_basename" = "tests_configure_ha_cluster_read_scale.yml" ]; then
-                    lsrRunPlaybook "$test_playbook" "$inventory_read_scale" "$SKIP_TAGS" "" "$LOGFILE"
+                    lsrRunPlaybook "$test_playbook" "$inventory_read_scale" "$SKIP_TAGS" "" "$LOGFILE" "${LSR_ANSIBLE_VERBOSITY:--vv}"
                 fi
             done
         done
