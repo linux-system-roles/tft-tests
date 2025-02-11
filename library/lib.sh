@@ -396,6 +396,7 @@ lsrRunPlaybook() {
     local skip_tags=$3
     local limit=$4
     local LOGFILE=$5
+    local verbosity="$6"
     local result=FAIL
     local cmd log_msg
     local role_name
@@ -403,7 +404,7 @@ lsrRunPlaybook() {
     if [ "${GET_PYTHON_MODULES:-}" = true ]; then
         ANSIBLE_ENVS[ANSIBLE_DEBUG]=true
     fi
-    cmd="$(lsrArrtoStr ANSIBLE_ENVS) ansible-playbook -i $inventory $skip_tags $limit $test_playbook ${LSR_ANSIBLE_VERBOSITY:--vv}"
+    cmd="$(lsrArrtoStr ANSIBLE_ENVS) ansible-playbook -i $inventory $skip_tags $limit $test_playbook $verbosity"
     log_msg="Test $test_playbook with ANSIBLE-$ANSIBLE_VER on ${limit/--limit /}"
     # If LSR_TFT_DEBUG is true, print output to terminal
     if [ "$LSR_TFT_DEBUG" == true ] || [ "$LSR_TFT_DEBUG" == True ]; then
@@ -444,6 +445,7 @@ lsrRunPlaybooksParallel() {
     local skip_tags=$2
     local test_playbooks=$3
     local managed_nodes=$4
+    local verbosity="$5"
     local rolename_in_logfile
     local role_name test_playbooks_arr
 
@@ -460,7 +462,7 @@ lsrRunPlaybooksParallel() {
                 else
                     LOGFILE="${playbook_basename%.*}"-ANSIBLE-"$ANSIBLE_VER"-$tmt_plan
                 fi
-                lsrRunPlaybook "$test_playbook" "$inventory" "$skip_tags" "--limit $managed_node" "$LOGFILE" &
+                lsrRunPlaybook "$test_playbook" "$inventory" "$skip_tags" "--limit $managed_node" "$LOGFILE" "$verbosity" &
                 sleep 1
                 break
             fi
