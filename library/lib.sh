@@ -91,11 +91,11 @@ lsrGetTests() {
     else
         test_playbooks="$test_playbooks_all"
     fi
-    if [ -n "$SYSTEM_ROLES_EXCLUDE_TESTS" ]; then
+    if [ -n "$SYSTEM_ROLES_EXCLUDED_TESTS" ]; then
         test_playbooks_excludes=""
         for test_playbook in $test_playbooks; do
             playbook_basename=$(basename "$test_playbook")
-            if ! echo "$SYSTEM_ROLES_EXCLUDE_TESTS" | grep -q "$playbook_basename"; then
+            if ! echo "$SYSTEM_ROLES_EXCLUDED_TESTS" | grep -q "$playbook_basename"; then
                 test_playbooks_excludes="$test_playbooks_excludes $test_playbook"
             fi
         done
@@ -108,6 +108,24 @@ lsrGetTests() {
     echo "$test_playbooks" | xargs
 }
 
+lsrVaultRequired() {
+    local tests_path=$1
+    local vault_pwd_file=$tests_path/vault_pwd
+    local vault_variables_file=$tests_path/vars/vault-variables.yml
+    local vault_pwd_short=vars/vault_pwd
+    local vault_variables_short=vars/vault-variables.yml
+    local role_name
+
+    role_name=$(lsrGetRoleNameFromTestsPath "$tests_path")
+
+    if [ ! -f "$vault_pwd_file" ] || [ ! -f "$vault_variables_file" ]; then
+        rlLogInfo "$role_name: Skipping vault variables because $vault_pwd_short and $vault_variables_short don't exist"
+        return 1
+    fi
+    rlLogInfo "$role_name: including vault variables"
+    return 0
+}
+
 # Handle Ansible Vault encrypted variables
 lsrHandleVault() {
     local playbook_file=$1
@@ -116,20 +134,20 @@ lsrHandleVault() {
     local vault_pwd_file=$tests_path/vault_pwd
     local vault_variables_file=$tests_path/vars/vault-variables.yml
     local no_vault_file=$tests_path/no-vault-variables.txt
-    local vault_play
+    local vault_play role_name vault_pwd_short vault_variables_short playbook_file_bsn
 
-    if [ ! -f "$vault_pwd_file" ] || [ ! -f "$vault_variables_file" ]; then
-        rlLogInfo "Skipping vault variables because $vault_pwd_file and $vault_variables_file don't exist"
-        return
-    fi
+    role_name=$(lsrGetRoleNameFromTestsPath "$tests_path")
+    vault_pwd_short=$role_name/vars/vault_pwd
+    vault_variables_short=$role_name/vars/vault-variables.yml
+    playbook_file_bsn=$(basename "$playbook_file")
+
     if [ -f "$no_vault_file" ]; then
-        playbook_file_bsn=$(basename "$playbook_file")
         if grep -q "^${playbook_file_bsn}\$" "$no_vault_file"; then
-            rlLogInfo "Skipping vault variables because $playbook_file_bsn is in no-vault-variables.txt"
+            rlLogInfo "$role_name/$playbook_file_bsn: skipping because playbook is in no-vault-variables.txt"
             return
         fi
     fi
-    rlLogInfo "Including vault variables in $playbook_file"
+    rlLogInfo "$role_name/$playbook_file_bsn: Including vault variables"
     if [ -z "${ANSIBLE_ENVS[ANSIBLE_VAULT_PASSWORD_FILE]}" ]; then
         ANSIBLE_ENVS[ANSIBLE_VAULT_PASSWORD_FILE]="$vault_pwd_file"
     fi

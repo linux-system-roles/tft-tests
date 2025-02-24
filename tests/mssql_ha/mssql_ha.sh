@@ -22,7 +22,7 @@ TEST_LOCAL_CHANGES="${TEST_LOCAL_CHANGES:-tests_configure_ha_cluster_external.ym
 #  If empty, tests all tests in tests/tests_*.yml
 SYSTEM_ROLES_ONLY_TESTS="${SYSTEM_ROLES_ONLY_TESTS:-false}"
 #
-# SYSTEM_ROLES_EXCLUDE_TESTS
+# SYSTEM_ROLES_EXCLUDED_TESTS
 #   Optional: Space separated names of test playbooks to exclude from test.
 #
 # GITHUB_ORG
@@ -77,9 +77,11 @@ rlJournalStart
         legacy_test_path="$role_path"/tests
         test_playbooks=$(lsrGetTests "$legacy_test_path")
         rlLogInfo "Test playbooks: $test_playbooks"
-        for test_playbook in $test_playbooks; do
-            lsrHandleVault "$test_playbook"
-        done
+        if lsrVaultRequired "$tests_path"; then
+            for test_playbook in $test_playbooks; do
+                lsrHandleVault "$test_playbook"
+            done
+        fi
         lsrSetAnsibleGathering "$ANSIBLE_GATHERING"
         lsrGetCollectionPath
         # role_path is defined in lsrGetRoleDir
