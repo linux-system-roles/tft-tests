@@ -20,7 +20,7 @@ TEST_LOCAL_CHANGES="${TEST_LOCAL_CHANGES:-false}"
 #  Optional: Space separated names of test playbooks to test. E.g. "tests_imuxsock_files.yml tests_relp.yml"
 #  If empty, tests all tests in tests/tests_*.yml
 #
-# SYSTEM_ROLES_EXCLUDE_TESTS
+# SYSTEM_ROLES_EXCLUDED_TESTS
 #   Optional: Space separated names of test playbooks to exclude from test.
 #
 # GITHUB_ORG
@@ -57,6 +57,7 @@ ANSIBLE_GATHERING="${ANSIBLE_GATHERING:-implicit}"
 REQUIRED_VARS=("ANSIBLE_VER" "REPO_NAME")
 # LSR_ANSIBLE_VERBOSITY
 #   Default is "-vv" - user can locally edit tft.yml in role to increase this for debugging
+LSR_ANSIBLE_VERBOSITY="${LSR_ANSIBLE_VERBOSITY:--vv}"
 
 rlJournalStart
     rlPhaseStartSetup
@@ -77,12 +78,14 @@ rlJournalStart
         # role_path is defined in lsrGetRoleDir
         # shellcheck disable=SC2154
         legacy_test_path="$role_path"/tests
-        lsrGenerateTestDisks "$legacy_test_path"
+        lsrGenerateTestDisks "$legacy_test_path" start disk_provisioner.sh
         test_playbooks=$(lsrGetTests "$legacy_test_path")
         rlLogInfo "Test playbooks: $test_playbooks"
-        for test_playbook in $test_playbooks; do
-            lsrHandleVault "$test_playbook"
-        done
+        if lsrVaultRequired "$tests_path"; then
+            for test_playbook in $test_playbooks; do
+                lsrHandleVault "$test_playbook"
+            done
+        fi
         lsrSetAnsibleGathering "$ANSIBLE_GATHERING"
         lsrGetCollectionPath
         # collection_path and guests_yml is defined in lsrGetCollectionPath
@@ -103,6 +106,6 @@ rlJournalStart
     rlPhaseEnd
     rlPhaseStartTest
         managed_nodes=$(lsrGetManagedNodes "$guests_yml")
-        lsrRunPlaybooksParallel "$inventory" "$SKIP_TAGS" "$test_playbooks" "$managed_nodes" "false" "${LSR_ANSIBLE_VERBOSITY:--vv}"
+        lsrRunPlaybooksParallel "$inventory" "$SKIP_TAGS" "$test_playbooks" "$managed_nodes" "false" "$LSR_ANSIBLE_VERBOSITY"
     rlPhaseEnd
 rlJournalEnd
