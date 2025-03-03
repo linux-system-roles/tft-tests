@@ -17,17 +17,21 @@ provision:
     role: managed_node
     connection: system
 environment:
+    # new var name: SR_ANSIBLE_VER: 2.17
     ANSIBLE_VER: 2.17
-    REPO_NAME: ""
+    SR_REPO_NAME: ""
+    # new var name: SR_PYTHON_VERSION: 3.12
     PYTHON_VERSION: 3.12
+    # new var name: SR_ONLY_TESTS: ""
     SYSTEM_ROLES_ONLY_TESTS: ""
-    TEST_LOCAL_CHANGES: false
-    PR_NUM: ""
-    LINUXSYSTEMROLES_USER: ""
-    LINUXSYSTEMROLES_DOMAIN: ""
-    LINUXSYSTEMROLES_SSH_KEY: ""
-    ARTIFACTS_DIR: ""
-    ARTIFACTS_URL: ""
+    SR_TEST_LOCAL_CHANGES: false
+    SR_PR_NUM: ""
+    SR_LSR_USER: ""
+    SR_LSR_DOMAIN: ""
+    SR_LSR_SSH_KEY: ""
+    SR_ARTIFACTS_DIR: ""
+    SR_ARTIFACTS_URL: ""
+    # new var name: SR_TFT_DEBUG: false
     LSR_TFT_DEBUG: false
 prepare:
   - name: Use vault.centos.org repos (CS 7, 8 EOL workaround)

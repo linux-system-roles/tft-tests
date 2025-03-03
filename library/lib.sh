@@ -24,43 +24,43 @@ lsrLabBosRepoWorkaround() {
 lsrInstallAnsible() {
     # Hardcode to the only supported version on later ELs
     if rlIsFedora '>=41'; then
-        PYTHON_VERSION=3.13
-    elif rlIsRHELLike 8 && [ "$ANSIBLE_VER" == "2.9" ]; then
-        PYTHON_VERSION=3.9
-    elif rlIsRHELLike 8 && [ "$ANSIBLE_VER" != "2.9" ]; then
+        SR_PYTHON_VERSION=3.13
+    elif rlIsRHELLike 8 && [ "$SR_ANSIBLE_VER" == "2.9" ]; then
+        SR_PYTHON_VERSION=3.9
+    elif rlIsRHELLike 8 && [ "$SR_ANSIBLE_VER" != "2.9" ]; then
         # CentOS-8 supports either 2.9 or 2.16
-        ANSIBLE_VER=2.16
+        SR_ANSIBLE_VER2.16
     elif rlIsRHELLike 7; then
-        PYTHON_VERSION=3
-        ANSIBLE_VER=2.9
+        SR_PYTHON_VERSION=3
+        SR_ANSIBLE_VER2.9
     fi
 
-    if rlIsFedora || (rlIsRHELLike ">7" && [ "$ANSIBLE_VER" != "2.9" ]); then
-        rlRun "dnf install python$PYTHON_VERSION-pip -y"
-        rlRun "python$PYTHON_VERSION -m pip install ansible-core==$ANSIBLE_VER.* passlib"
+    if rlIsFedora || (rlIsRHELLike ">7" && [ "$SR_ANSIBLE_VER" != "2.9" ]); then
+        rlRun "dnf install python$SR_PYTHON_VERSION-pip -y"
+        rlRun "python$SR_PYTHON_VERSION -m pip install ansible-core==$SR_ANSIBLE_VER.* passlib"
     elif rlIsRHELLike 8; then
         # el8 ansible-2.9
-        rlRun "dnf install python$PYTHON_VERSION -y"
+        rlRun "dnf install python$SR_PYTHON_VERSION -y"
         # selinux needed for delegate_to: localhost for file, copy, etc.
         # Providing passlib for password_hash module, see https://issues.redhat.com/browse/SYSROLES-81
-        rlRun "python$PYTHON_VERSION -m pip install ansible==$ANSIBLE_VER.* selinux passlib rpm"
+        rlRun "python$SR_PYTHON_VERSION -m pip install ansible==$SR_ANSIBLE_VER.* selinux passlib rpm"
     else
         # el7
-        rlRun "yum install python$PYTHON_VERSION-pip ansible-$ANSIBLE_VER.* -y"
+        rlRun "yum install python$SR_PYTHON_VERSION-pip ansible-$SR_ANSIBLE_VER.* -y"
     fi
 }
 
 lsrCloneRepo() {
     local role_path=$1
     local repo_name=$2
-    rlRun "git clone -q https://github.com/$GITHUB_ORG/$repo_name.git $role_path --depth 1"
-    if [ -n "$PR_NUM" ]; then
+    rlRun "git clone -q https://github.com/$SR_GITHUB_ORG/$repo_name.git $role_path --depth 1"
+    if [ -n "$SR_PR_NUM" ]; then
         # git on EL7 doesn't support -C option
         pushd "$role_path" || exit
-        rlRun "git fetch origin pull/$PR_NUM/head"
+        rlRun "git fetch origin pull/$SR_PR_NUM/head"
         rlRun "git checkout FETCH_HEAD"
         popd || exit
-        rlLog "Test from the pull request $PR_NUM"
+        rlLog "Test from the pull request $SR_PR_NUM"
     else
         rlLog "Test from the main branch"
     fi
@@ -68,7 +68,7 @@ lsrCloneRepo() {
 
 lsrGetRoleDir() {
     local repo_name=$1
-    if [ "$TEST_LOCAL_CHANGES" == true ] || [ "$TEST_LOCAL_CHANGES" == True ]; then
+    if [ "$SR_TEST_LOCAL_CHANGES" == True ]; then
         rlLog "Test from local changes"
         role_path="$TMT_TREE"
     else
@@ -81,21 +81,21 @@ lsrGetTests() {
     local tests_path=$1
     local test_playbooks_all test_playbooks
     test_playbooks_all=$(find "$tests_path" -maxdepth 1 -type f -name "tests_*.yml")
-    if [ -n "$SYSTEM_ROLES_ONLY_TESTS" ]; then
+    if [ -n "$SR_ONLY_TESTS" ]; then
         for test_playbook in $test_playbooks_all; do
             playbook_basename=$(basename "$test_playbook")
-            if echo "$SYSTEM_ROLES_ONLY_TESTS" | grep -q "$playbook_basename"; then
+            if echo "$SR_ONLY_TESTS" | grep -q "$playbook_basename"; then
                 test_playbooks="$test_playbooks $test_playbook"
             fi
         done
     else
         test_playbooks="$test_playbooks_all"
     fi
-    if [ -n "$SYSTEM_ROLES_EXCLUDE_TESTS" ]; then
+    if [ -n "$SR_EXCLUDED_TESTS" ]; then
         test_playbooks_excludes=""
         for test_playbook in $test_playbooks; do
             playbook_basename=$(basename "$test_playbook")
-            if ! echo "$SYSTEM_ROLES_EXCLUDE_TESTS" | grep -q "$playbook_basename"; then
+            if ! echo "$SR_EXCLUDED_TESTS" | grep -q "$playbook_basename"; then
                 test_playbooks_excludes="$test_playbooks_excludes $test_playbook"
             fi
         done
@@ -108,6 +108,24 @@ lsrGetTests() {
     echo "$test_playbooks" | xargs
 }
 
+lsrVaultRequired() {
+    local tests_path=$1
+    local vault_pwd_file=$tests_path/vault_pwd
+    local vault_variables_file=$tests_path/vars/vault-variables.yml
+    local vault_pwd_short=vars/vault_pwd
+    local vault_variables_short=vars/vault-variables.yml
+    local role_name
+
+    role_name=$(lsrGetRoleNameFromTestsPath "$tests_path")
+
+    if [ ! -f "$vault_pwd_file" ] || [ ! -f "$vault_variables_file" ]; then
+        rlLogInfo "$role_name: Skipping vault variables because $vault_pwd_short and $vault_variables_short don't exist"
+        return 1
+    fi
+    rlLogInfo "$role_name: including vault variables"
+    return 0
+}
+
 # Handle Ansible Vault encrypted variables
 lsrHandleVault() {
     local playbook_file=$1
@@ -116,20 +134,20 @@ lsrHandleVault() {
     local vault_pwd_file=$tests_path/vault_pwd
     local vault_variables_file=$tests_path/vars/vault-variables.yml
     local no_vault_file=$tests_path/no-vault-variables.txt
-    local vault_play
+    local vault_play role_name vault_pwd_short vault_variables_short playbook_file_bsn
 
-    if [ ! -f "$vault_pwd_file" ] || [ ! -f "$vault_variables_file" ]; then
-        rlLogInfo "Skipping vault variables because $vault_pwd_file and $vault_variables_file don't exist"
-        return
-    fi
+    role_name=$(lsrGetRoleNameFromTestsPath "$tests_path")
+    vault_pwd_short=$role_name/vars/vault_pwd
+    vault_variables_short=$role_name/vars/vault-variables.yml
+    playbook_file_bsn=$(basename "$playbook_file")
+
     if [ -f "$no_vault_file" ]; then
-        playbook_file_bsn=$(basename "$playbook_file")
         if grep -q "^${playbook_file_bsn}\$" "$no_vault_file"; then
-            rlLogInfo "Skipping vault variables because $playbook_file_bsn is in no-vault-variables.txt"
+            rlLogInfo "$role_name/$playbook_file_bsn: skipping because playbook is in no-vault-variables.txt"
             return
         fi
     fi
-    rlLogInfo "Including vault variables in $playbook_file"
+    rlLogInfo "$role_name/$playbook_file_bsn: Including vault variables"
     if [ -z "${ANSIBLE_ENVS[ANSIBLE_VAULT_PASSWORD_FILE]}" ]; then
         ANSIBLE_ENVS[ANSIBLE_VAULT_PASSWORD_FILE]="$vault_pwd_file"
     fi
@@ -238,7 +256,7 @@ lsrConvertToCollection() {
     if [ "$role_name" = "metrics" ]; then
         rlRun "rm -rf $collection_path/ansible_collections/fedora/linux_system_roles/vendor/github.com/performancecopilot/ansible-pcp"
     fi
-    rlRun "python$PYTHON_VERSION -m pip install ruamel-yaml"
+    rlRun "python$SR_PYTHON_VERSION -m pip install ruamel-yaml"
     # Remove symlinks in tests/roles
     if [ -d "$role_path"/tests/roles ]; then
         find "$role_path"/tests/roles -type l -exec rm {} \;
@@ -246,7 +264,7 @@ lsrConvertToCollection() {
             rlRun "rm -r $role_path/tests/roles/linux-system-roles.$role_name"
         fi
     fi
-    rlRun "python$PYTHON_VERSION $lsr_role2collection \
+    rlRun "python$SR_PYTHON_VERSION $lsr_role2collection \
 --meta-runtime $runtime \
 --src-owner linux-system-roles \
 --role $role_name \
@@ -259,12 +277,14 @@ lsrConvertToCollection() {
 
 lsrGetManagedNodes() {
     local guests_yml=$1
-    sed --quiet --regexp-extended 's/(^managed.*):$/\1/p' "$guests_yml" | sort
+    # xargs to return space-separated string
+    sed --quiet --regexp-extended 's/(^managed.*):$/\1/p' "$guests_yml" | sort | xargs
 }
 
 lsrGetNodes() {
     local guests_yml=$1
-    sed --quiet --regexp-extended 's/(^[^ ]*):$/\1/p' "$guests_yml" | sort
+    # xargs to return space-separated string
+    sed --quiet --regexp-extended 's/(^[^ ]*):$/\1/p' "$guests_yml" | sort | xargs
 }
 
 lsrGetNodeName() {
@@ -347,32 +367,32 @@ lsrUploadLogs() {
     local role_name=$3
     local id_rsa_path pr_substr os artifact_dirname target_dir
     rlFileSubmit "$logfile"
-    if [ -z "$LINUXSYSTEMROLES_SSH_KEY" ]; then
+    if [ -z "$SR_LSR_SSH_KEY" ]; then
         return
     fi
     id_rsa_path=$(mktemp -t id_rsa-XXXXX)
-    echo "$LINUXSYSTEMROLES_SSH_KEY" | \
+    echo "$SR_LSR_SSH_KEY" | \
         sed -e 's|-----BEGIN OPENSSH PRIVATE KEY----- |-----BEGIN OPENSSH PRIVATE KEY-----\n|' \
         -e 's| -----END OPENSSH PRIVATE KEY-----|\n-----END OPENSSH PRIVATE KEY-----|' > "$id_rsa_path" # notsecret
     chmod 600 "$id_rsa_path"
-    if [ -z "$ARTIFACTS_DIR" ]; then
+    if [ -z "$SR_ARTIFACTS_DIR" ]; then
         control_node_name=$(lsrGetNodeName "$guests_yml" "control-node")
         os=$(lsrGetNodeOs "$guests_yml" "$control_node_name")
         printf -v date '%(%Y%m%d-%H%M%S)T' -1
-        if [ -z "$PR_NUM" ]; then
+        if [ -z "$SR_PR_NUM" ]; then
             pr_substr=_main
         else
-            pr_substr=_$PR_NUM
+            pr_substr=_$SR_PR_NUM
         fi
         artifact_dirname=tmt-"$role_name""$pr_substr"_"$os"_"$date"/artifacts
         target_dir="/srv/pub/alt/linuxsystemroles/logs"
-        ARTIFACTS_DIR="$target_dir"/"$artifact_dirname"
-        ARTIFACTS_URL=https://dl.fedoraproject.org/pub/alt/linuxsystemroles/logs/$artifact_dirname/
+        SR_ARTIFACTS_DIR="$target_dir"/"$artifact_dirname"
+        SR_ARTIFACTS_URL=https://dl.fedoraproject.org/pub/alt/linuxsystemroles/logs/$artifact_dirname/
     fi
-    rlRun "ssh -i $id_rsa_path -o StrictHostKeyChecking=no $LINUXSYSTEMROLES_USER@$LINUXSYSTEMROLES_DOMAIN mkdir -p $ARTIFACTS_DIR"
+    rlRun "ssh -i $id_rsa_path -o StrictHostKeyChecking=no $SR_LSR_USER@$SR_LSR_DOMAIN mkdir -p $SR_ARTIFACTS_DIR"
     chmod +r "$guests_yml"
-    rlRun "scp -i $id_rsa_path -o StrictHostKeyChecking=no $logfile $guests_yml $LINUXSYSTEMROLES_USER@$LINUXSYSTEMROLES_DOMAIN:$ARTIFACTS_DIR/"
-    rlLogInfo "Logs are uploaded at $ARTIFACTS_URL"
+    rlRun "scp -i $id_rsa_path -o StrictHostKeyChecking=no $logfile $guests_yml $SR_LSR_USER@$SR_LSR_DOMAIN:$SR_ARTIFACTS_DIR/"
+    rlLogInfo "Logs are uploaded at $SR_ARTIFACTS_URL"
     rlRun "rm $id_rsa_path"
 }
 
@@ -398,16 +418,16 @@ lsrRunPlaybook() {
     local LOGFILE=$5
     local verbosity="$6"
     local result=FAIL
-    local cmd log_msg
-    local role_name
-    role_name=$(lsrGetRoleName "$test_playbook")
+    local cmd log_msg role_name playbook_basename
+    role_name=$(lsrGetRoleNameFromTestPlaybook "$test_playbook")
+    playbook_basename=$(basename "$test_playbook")
     if [ "${GET_PYTHON_MODULES:-}" = true ]; then
         ANSIBLE_ENVS[ANSIBLE_DEBUG]=true
     fi
     cmd="$(lsrArrtoStr ANSIBLE_ENVS) ansible-playbook -i $inventory $skip_tags $limit $test_playbook $verbosity"
-    log_msg="Test $test_playbook with ANSIBLE-$ANSIBLE_VER on ${limit/--limit /}"
-    # If LSR_TFT_DEBUG is true, print output to terminal
-    if [ "$LSR_TFT_DEBUG" == true ] || [ "$LSR_TFT_DEBUG" == True ]; then
+    log_msg="Test $role_name/$playbook_basename with ANSIBLE-$SR_ANSIBLE_VER on ${limit/--limit /}"
+    # If SR_TFT_DEBUG is true, print output to terminal
+    if [ "$SR_TFT_DEBUG" == true ] || [ "$SR_TFT_DEBUG" == True ]; then
         rlRun "ANSIBLE_LOG_PATH=$LOGFILE $cmd && result=SUCCESS" 0 "$log_msg"
     else
         rlRun "$cmd &> $LOGFILE && result=SUCCESS" 0 "$log_msg"
@@ -425,17 +445,23 @@ lsrRunPlaybook() {
     fi
 }
 
-lsrGetRoleName() {
-    local test_playbook=$1
-    local parent_dir_abs parent_dir role_dir_abs
-    parent_dir_abs=$(dirname "$test_playbook")
-    parent_dir="${parent_dir_abs##*/}"
-    if [ "$parent_dir" = tests ]; then # legacy role format
-        role_dir_abs=$(dirname "$parent_dir_abs")
-        echo "${role_dir_abs##*.}"
+lsrGetRoleNameFromTestsPath() {
+    local tests_path=$1
+    local test_dir role_dir_abs
+    test_dir=$(basename "$tests_path")
+    if [ "$test_dir" = tests ]; then # legacy role format
+        role_dir_abs=$(dirname "$tests_path")
+        basename "$role_dir_abs"
     else # collection format
-        echo "$parent_dir"
+        echo "$test_dir"
     fi
+}
+
+lsrGetRoleNameFromTestPlaybook() {
+    local test_playbook=$1
+    local tests_path
+    tests_path=$(dirname "$test_playbook")
+    lsrGetRoleNameFromTestsPath "$tests_path"
 }
 
 lsrRunPlaybooksParallel() {
@@ -445,9 +471,8 @@ lsrRunPlaybooksParallel() {
     local skip_tags=$2
     local test_playbooks=$3
     local managed_nodes=$4
-    # NOTE: not sure what $5 is - false
+    local rolename_in_logfile=$5
     local verbosity="$6"
-    local rolename_in_logfile
     local role_name test_playbooks_arr
 
     read -ra test_playbooks_arr <<< "$test_playbooks"
@@ -458,10 +483,10 @@ lsrRunPlaybooksParallel() {
                 test_playbooks_arr=("${test_playbooks_arr[@]:1}") # Remove first element from array
                 playbook_basename=$(basename "$test_playbook")
                 if [ "$rolename_in_logfile" == true ] || [ "$rolename_in_logfile" == True ]; then
-                    role_name=$(lsrGetRoleName "$test_playbook")
-                    LOGFILE="$role_name"-"${playbook_basename%.*}"-ANSIBLE-"$ANSIBLE_VER"-$tmt_plan
+                    role_name=$(lsrGetRoleNameFromTestPlaybook "$test_playbook")
+                    LOGFILE="$role_name"-"${playbook_basename%.*}"-ANSIBLE-"$SR_ANSIBLE_VER"-$tmt_plan
                 else
-                    LOGFILE="${playbook_basename%.*}"-ANSIBLE-"$ANSIBLE_VER"-$tmt_plan
+                    LOGFILE="${playbook_basename%.*}"-ANSIBLE-"$SR_ANSIBLE_VER"-$tmt_plan
                 fi
                 lsrRunPlaybook "$test_playbook" "$inventory" "$skip_tags" "--limit $managed_node" "$LOGFILE" "$verbosity" &
                 sleep 1
@@ -564,10 +589,18 @@ lsrCopyToNode() {
     local dest_path=$3
     local guests_yml=$4
     local tmt_tree_provision=$5
-    local identity_file_arg node_ip
-    identity_file_arg=$(lsrGetIdentityFile "$guests_yml" "$tmt_tree_provision")
+    local print_out=$6
+    local identity_file_args node_ip scp_cmd
+    identity_file_args=$(lsrGetIdentityFile "$guests_yml" "$tmt_tree_provision")
     node_ip=$(lsrGetNodeIp "$guests_yml" "$node")
-    rlRun "scp $identity_file_arg -o StrictHostKeyChecking=no $cp_files root@$node_ip:$dest_path"
+    # Passing some variables without quotes to avoid shell considering them a single argument
+    # shellcheck disable=SC2206
+    scp_cmd=(scp $identity_file_args -o StrictHostKeyChecking=no $cp_files root@"$node_ip":"$dest_path")
+    if [ "$print_out" == false ]; then
+        "${scp_cmd[@]}" > /dev/null 2>&1
+    else
+        "${scp_cmd[@]}"
+    fi
 }
 
 lsrExecuteOnNode() {
@@ -575,34 +608,53 @@ lsrExecuteOnNode() {
     local cmd=$2
     local guests_yml=$3
     local tmt_tree_provision=$4
-    local identity_file_arg node_ip
-    identity_file_arg=$(lsrGetIdentityFile "$guests_yml" "$tmt_tree_provision")
+    local print_out=$5
+    local identity_file_args node_ip ssh_cmd
+    identity_file_args=$(lsrGetIdentityFile "$guests_yml" "$tmt_tree_provision")
     node_ip=$(lsrGetNodeIp "$guests_yml" "$node")
-    rlRun "ssh $identity_file_arg -o StrictHostKeyChecking=no root@$node_ip \"$cmd\""
+    # Passing identity_file_args without quotes to avoid shell considering it a single argument
+    # shellcheck disable=SC2206
+    ssh_cmd=(ssh $identity_file_args -o StrictHostKeyChecking=no root@"$node_ip" "$cmd")
+    if [ "$print_out" == false ]; then
+        "${ssh_cmd[@]}" > /dev/null 2>&1
+    else
+        "${ssh_cmd[@]}"
+    fi
 }
 
 lsrGenerateTestDisks() {
     local tests_path=$1
+    local action=$2
+    local disk_provisioner_script=$3
     local provisionfmf="$tests_path"/provision.fmf
-    local disk_provisioner_script=disk_provisioner.sh
     local disk_provisioner_dir
     if ! lsrDiskProvisionerRequired "$tests_path"; then
         return 0
     fi
+    if [ "$action" != start ] && [ "$action" != stop ]; then
+        rlDie "With lsrGenerateTestDisks, action must be either start or stop. Provided action: $action"
+    fi
+
     managed_nodes=$(lsrGetManagedNodes "$guests_yml")
     for managed_node in $managed_nodes; do
-        available=$(lsrExecuteOnNode "$managed_node" "df -k /tmp --output=avail | tail -1" "$guests_yml" "$tmt_tree_provision")
-        rlLog "Available disk space: $available"
+        available=$(lsrExecuteOnNode "$managed_node" "df -k /tmp --output=avail | tail -1" "$guests_yml" "$tmt_tree_provision" "true")
+        # rlLog "Available disk space: $available"
         if [ "$available" -gt 10485760 ]; then
             disk_provisioner_dir=/tmp/disk_provisioner
         else
             disk_provisioner_dir=/var/tmp/disk_provisioner
         fi
-        lsrCopyToNode "$managed_node" "$disk_provisioner_script $provisionfmf" "/tmp/" "$guests_yml" "$tmt_tree_provision"
-        lsrExecuteOnNode "$managed_node" "WORK_DIR=$disk_provisioner_dir FMF_DIR=/tmp/ /tmp/$disk_provisioner_script start" "$guests_yml" "$tmt_tree_provision"
-        # Ensure that a new devices really exists
-        lsrExecuteOnNode "$managed_node" "fdisk -l | grep 'Disk /dev/'" "$guests_yml" "$tmt_tree_provision"
-        lsrExecuteOnNode "$managed_node" "lsblk -l | cut -d\  -f1 | grep -v NAME | sed 's/^/\/dev\//' | xargs ls -l" "$guests_yml" "$tmt_tree_provision"
+        lsrCopyToNode "$managed_node" "$disk_provisioner_script $provisionfmf" "/tmp/" "$guests_yml" \
+            "$tmt_tree_provision" "false"
+        lsrExecuteOnNode "$managed_node" \
+            "chmod +x /tmp/$disk_provisioner_script" \
+            "$guests_yml" "$tmt_tree_provision" "false"
+        lsrExecuteOnNode "$managed_node" \
+            "WORK_DIR=$disk_provisioner_dir FMF_DIR=/tmp/ /tmp/$disk_provisioner_script $action" \
+            "$guests_yml" "$tmt_tree_provision" "false"
+        # Print devices
+        lsrExecuteOnNode "$managed_node" "echo $managed_node ; fdisk -l | grep 'Disk /dev/' ; lsblk -l | cut -d\  -f1 | grep -v NAME | sed 's/^/\/dev\//' | xargs ls -l" \
+            "$guests_yml" "$tmt_tree_provision" "true"
     done
 }
 
@@ -638,7 +690,7 @@ lsrSetupGetPythonModules() {
 lsrSetAnsibleGathering() {
     local value=$1
     if [[ ! $value =~ ^(implicit|explicit|smart)$ ]]; then
-        rlLogError "Value for ANSIBLE_GATHERING must be one of implicit, explicit, smart"
+        rlLogError "Value for SR_ANSIBLE_GATHERING must be one of implicit, explicit, smart"
         rlLogError "Provided value: $value"
         return 1
     fi
