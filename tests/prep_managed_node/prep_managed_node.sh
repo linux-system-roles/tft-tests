@@ -11,7 +11,6 @@
 SR_GITHUB_ORG="${SR_GITHUB_ORG:-linux-system-roles}"
 # SR_REQUIRED_VARS
 #   Env variables required by this test
-SR_REQUIRED_VARS=("SR_REPO_NAME")
 # SR_PYTHON_VERSION
 #   Python version to install ansible-core with (EL 8, 9, 10 only).
 
