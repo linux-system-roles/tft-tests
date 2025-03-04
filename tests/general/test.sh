@@ -102,7 +102,7 @@ rlJournalStart
         lsrGenerateTestDisks "$legacy_test_path" start disk_provisioner.sh
         test_playbooks=$(lsrGetTests "$legacy_test_path")
         rlLogInfo "Test playbooks: $test_playbooks"
-        if lsrVaultRequired "$tests_path"; then
+        if lsrVaultRequired "$legacy_test_path"; then
             for test_playbook in $test_playbooks; do
                 lsrHandleVault "$test_playbook"
             done
