@@ -697,6 +697,60 @@ lsrSetAnsibleGathering() {
     ANSIBLE_ENVS[ANSIBLE_GATHERING]="$value"
 }
 
+lsrGetOstreePackages() {
+    local collection_path node_platform ostree_cmd distro ver
+    collection_path="$1"
+    node_platform="$2"
+    distro="${node_platform%%-*}"
+    if [[ "$node_platform" =~ ([a-zA-Z_-]+)-([0-9]+) ]]; then
+        distro="${BASH_REMATCH[1]}"
+        ver="${BASH_REMATCH[2]}"
+        case "$distro" in
+        RHEL) distro=RedHat ;;
+        CentOS*) distro=CentOS ;;
+        esac
+    else
+        rlLogError "The given node_platform $node_platform is not in a recognized format"
+        return 1
+    fi
+    for ostree_cmd in "$collection_path"/roles/*/.ostree/get_ostree_data.sh; do
+        "$ostree_cmd" packages testing "${distro}-${ver}" raw
+    done | sort -u
+}
+
+# prepare managed node for image mode testing
+# get list of packages to install
+# install packages on managed node using rpm-ostree install
+# reboot managed node for ostree install to take effect
+# ensure node is up and ready before returning
+lsrPrepareImageMode() {
+    local collection_path managed_nodes managed_node packages node_platform
+    collection_path="$1"
+    managed_nodes=$(lsrGetManagedNodes "$guests_yml")
+    for managed_node in $managed_nodes; do
+        node_platform="$(lsrGetNodeOs "$guests_yml" "$managed_node")"
+        if [[ "$node_platform" =~ "image-mode$" ]]; then
+            packages="$(lsrGetOstreePackages "$collection_path" "$node_platform")"
+            lsrExecuteOnNode "$managed_node" "rpm-ostree install -r $packages" \
+                "$guests_yml" "$tmt_tree_provision" true
+            local counter=60
+            while [ "$counter" -gt 0 ]; do
+                if lsrExecuteOnNode "$managed_node" "rpm-ostree status" \
+                    "$guests_yml" "$tmt_tree_provision" true; then
+                    break
+                fi
+                sleep 1
+                if counter="$(( counter - 1 ))"; then
+                    continue
+                else
+                    rlLogError "Image mode node $managed_node $node_platform did not successfully reboot"
+                    break
+                fi
+            done
+        fi
+    done
+}
+
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #   Verification
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
