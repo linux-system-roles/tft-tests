@@ -702,7 +702,7 @@ lsrGetOstreePackages() {
     collection_path="$1"
     node_platform="$2"
     distro="${node_platform%%-*}"
-    if [[ "$node_platform" =~ ([a-zA-Z_-]+)-([0-9]+) ]]; then
+    if [[ "$node_platform" =~ ^([a-zA-Z_-]+)-([0-9]+) ]]; then
         distro="${BASH_REMATCH[1]}"
         ver="${BASH_REMATCH[2]}"
         case "$distro" in
