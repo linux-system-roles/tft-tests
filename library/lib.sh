@@ -29,10 +29,10 @@ lsrInstallAnsible() {
         SR_PYTHON_VERSION=3.9
     elif rlIsRHELLike 8 && [ "$SR_ANSIBLE_VER" != "2.9" ]; then
         # CentOS-8 supports either 2.9 or 2.16
-        SR_ANSIBLE_VER2.16
+        SR_ANSIBLE_VER=2.16
     elif rlIsRHELLike 7; then
         SR_PYTHON_VERSION=3
-        SR_ANSIBLE_VER2.9
+        SR_ANSIBLE_VER=2.9
     fi
 
     if rlIsFedora || (rlIsRHELLike ">7" && [ "$SR_ANSIBLE_VER" != "2.9" ]); then
