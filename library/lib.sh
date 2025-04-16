@@ -80,7 +80,7 @@ lsrGetRoleDir() {
 lsrGetTests() {
     local tests_path=$1
     local test_playbooks_all test_playbooks
-    test_playbooks_all=$(find "$tests_path" -maxdepth 1 -type f -name "tests_*.yml")
+    test_playbooks_all=$(find "$tests_path" -maxdepth 1 -type f -name "tests_*.yml" | sort)
     if [ -n "$SR_ONLY_TESTS" ]; then
         for test_playbook in $test_playbooks_all; do
             playbook_basename=$(basename "$test_playbook")
