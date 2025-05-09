@@ -47,6 +47,7 @@ environment:
     SR_ARTIFACTS_URL: ""
     # new var name: SR_TFT_DEBUG: false
     LSR_TFT_DEBUG: false
+    SR_REPORT_ERRORS_URL: "https://raw.githubusercontent.com/linux-system-roles/auto-maintenance/0cf66855f269bc7f3d726b2e1e4c6e5e8124cc63/callback_plugins/lsr_report_errors.py"
 prepare:
   - name: Use vault.centos.org repos (CS 7, 8 EOL workaround)
     script: |
