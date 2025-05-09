@@ -204,6 +204,7 @@ lsrInstallDependencies() {
 lsrEnableCallbackPlugins() {
     local collection_path=$1
     local cmd
+    local basename
     # Enable callback plugins for prettier ansible output
     callback_path=ansible_collections/ansible/posix/plugins/callback
     if [ ! -f "$collection_path"/"$callback_path"/debug.py ] || [ ! -f "$collection_path"/"$callback_path"/profile_tasks.py ]; then
@@ -228,6 +229,10 @@ lsrEnableCallbackPlugins() {
         ANSIBLE_ENVS[ANSIBLE_CALLBACK_WHITELIST]="profile_tasks"
     fi
     ANSIBLE_ENVS[ANSIBLE_STDOUT_CALLBACK]="debug"
+    # grab the lsr_report_errors.py callback plugin
+    basename="$(basename "$SR_REPORT_ERRORS_URL")"
+    curl -L -s -o "$collection_path/$callback_path/$basename" "$SR_REPORT_ERRORS_URL"
+    ANSIBLE_ENVS[ANSIBLE_CALLBACK_PLUGINS]="$collection_path/$callback_path"
 }
 
 lsrConvertToCollection() {
