@@ -81,6 +81,10 @@ SR_REQUIRED_VARS=("SR_ANSIBLE_VER" "SR_REPO_NAME")
 #   Default is "-vv" - user can locally edit tft.yml in role to increase this for debugging
 [ -n "$LSR_ANSIBLE_VERBOSITY" ] && export SR_ANSIBLE_VERBOSITY="$LSR_ANSIBLE_VERBOSITY"
 SR_ANSIBLE_VERBOSITY="${SR_ANSIBLE_VERBOSITY:--vv}"
+# SR_REPORT_ERRORS_URL
+#   Default is https://raw.githubusercontent.com/linux-system-roles/auto-maintenance/main/callback_plugins/lsr_report_errors.py
+#   This is used to embed an error report in the output log
+SR_REPORT_ERRORS_URL="${SR_REPORT_ERRORS_URL:-https://raw.githubusercontent.com/linux-system-roles/auto-maintenance/main/callback_plugins/lsr_report_errors.py}"
 
 rlJournalStart
     rlPhaseStartSetup
