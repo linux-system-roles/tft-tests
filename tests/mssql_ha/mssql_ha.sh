@@ -163,8 +163,8 @@ rlJournalStart
             test_playbook_basename=$(basename "$test_playbook")
             for mssql_version in $supported_versions; do
                 # Replace mssql_version value to one of the supported versions
-                sed -i "s/mssql_version.*$/mssql_version: $mssql_version/g" "$test_playbook"
-                rlRun "grep '^ *mssql_version:' $test_playbook"
+                sed -i "s/mssql_version: [0-9]*$/mssql_version: $mssql_version/g" "$test_playbook"
+                rlRun "grep 'mssql_version: [0-9]*$' $test_playbook"
                 # tmt_plan is assigned at lsrPrepTestVars
                 # shellcheck disable=SC2154
                 LOGFILE="${test_playbook_basename%.*}"-ANSIBLE-"$SR_ANSIBLE_VER"-"$tmt_plan"-"$mssql_version"
