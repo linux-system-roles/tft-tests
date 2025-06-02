@@ -128,6 +128,7 @@ rlJournalStart
             # shellcheck disable=SC2086
             lsrSetupGetPythonModules "$test_playbooks"
         fi
+        lsrPrepareImageMode "$collection_path"
     rlPhaseEnd
     rlPhaseStartTest
         managed_nodes=$(lsrGetManagedNodes "$guests_yml")
