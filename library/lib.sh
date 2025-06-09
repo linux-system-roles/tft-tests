@@ -37,16 +37,19 @@ lsrInstallAnsible() {
 
     if rlIsFedora || (rlIsRHELLike ">7" && [ "$SR_ANSIBLE_VER" != "2.9" ]); then
         rlRun "dnf install python$SR_PYTHON_VERSION-pip -y"
-        rlRun "python$SR_PYTHON_VERSION -m pip install ansible-core==$SR_ANSIBLE_VER.* passlib"
+        # install ansible dependencies first so that we do not install pre-release versions of them
+        rlRun "python$SR_PYTHON_VERSION -m pip install passlib"
+        # install possible pre-release version of ansible-core
+        rlRun "python$SR_PYTHON_VERSION -m pip install --pre 'ansible-core==$SR_ANSIBLE_VER.*'"
     elif rlIsRHELLike 8; then
         # el8 ansible-2.9
         rlRun "dnf install python$SR_PYTHON_VERSION -y"
         # selinux needed for delegate_to: localhost for file, copy, etc.
         # Providing passlib for password_hash module, see https://issues.redhat.com/browse/SYSROLES-81
-        rlRun "python$SR_PYTHON_VERSION -m pip install ansible==$SR_ANSIBLE_VER.* selinux passlib rpm"
+        rlRun "python$SR_PYTHON_VERSION -m pip install 'ansible==$SR_ANSIBLE_VER.*' selinux passlib rpm"
     else
         # el7
-        rlRun "yum install python$SR_PYTHON_VERSION-pip ansible-$SR_ANSIBLE_VER.* -y"
+        rlRun "yum install python$SR_PYTHON_VERSION-pip 'ansible-$SR_ANSIBLE_VER.*' -y"
     fi
 }
 
