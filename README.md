@@ -1,5 +1,7 @@
 # tft-tests
 
+test-it
+
 This repository stores test plans for running tests in Testing Farm.
 
 So far, it contains a single plan and a single test.
