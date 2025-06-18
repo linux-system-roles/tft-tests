@@ -118,22 +118,39 @@ rlJournalStart
         # shellcheck disable=SC2154
         inventory_external=$(lsrPrepareInventoryVars "$tmt_tree_provision" "$guests_yml")
         inventory_read_scale=$(lsrPrepareInventoryVars "$tmt_tree_provision" "$guests_yml")
+        inventory_external_read_only=$(lsrPrepareInventoryVars "$tmt_tree_provision" "$guests_yml")
 
-        declare -A external_node_types
-        external_node_types[managed-node1]=primary
-        external_node_types[managed-node2]=synchronous
-        # external_node_types is used below when calling lsrMssqlHaUpdateInventory
+        # Set mssql_ha_repolica_type variables in inventories
+        declare -A mssql_ha_replica_type
+        mssql_ha_replica_type[managed-node1]=primary
+        mssql_ha_replica_type[managed-node2]=synchronous
+        # mssql_ha_replica_type is used below when calling lsrMssqlHaUpdateInventory
         # shellcheck disable=SC2034
-        external_node_types[managed-node3]=witness
-        declare -A read_scale_node_types
-        read_scale_node_types[managed-node1]=primary
-        read_scale_node_types[managed-node2]=synchronous
-        # read_scale_node_types is used below when calling lsrMssqlHaUpdateInventory
-        # shellcheck disable=SC2034
-        read_scale_node_types[managed-node3]=asynchronous
+        mssql_ha_replica_type[managed-node3]=witness
+        lsrMssqlHaUpdateInventory "$inventory_external" mssql_ha_replica_type
+        lsrMssqlHaUpdateInventory "$inventory_external_read_only" mssql_ha_replica_type
+        unset mssql_ha_replica_type
 
-        lsrMssqlHaUpdateInventory "$inventory_external" external_node_types
-        lsrMssqlHaUpdateInventory "$inventory_read_scale" read_scale_node_types
+        declare -A mssql_ha_replica_type
+        mssql_ha_replica_type[managed-node1]=primary
+        mssql_ha_replica_type[managed-node2]=synchronous
+        # mssql_ha_replica_type is used below when calling lsrMssqlHaUpdateInventory
+        # shellcheck disable=SC2034
+        mssql_ha_replica_type[managed-node3]=asynchronous
+        lsrMssqlHaUpdateInventory "$inventory_read_scale" mssql_ha_replica_type
+
+        # Set mssql_ha_ag_secondary_role_allow_connections variables in inventories
+        declare -A mssql_ha_ag_secondary_role_allow_connections
+        mssql_ha_ag_secondary_role_allow_connections[managed-node1]=ALL
+        mssql_ha_ag_secondary_role_allow_connections[managed-node2]=READ_ONLY
+        lsrMssqlHaUpdateInventory "$inventory_external_read_only" mssql_ha_ag_secondary_role_allow_connections
+        unset mssql_ha_replica_type
+
+        # Set mssql_ha_ag_secondary_role_allow_connections variables in inventories
+        declare -A mssql_ha_ag_secondary_role_allow_connections
+        mssql_ha_ag_secondary_role_allow_connections[managed-node1]="('managed_host2')"
+        lsrMssqlHaUpdateInventory "$inventory_external_read_only" mssql_ha_ag_secondary_role_allow_connections
+        unset mssql_ha_replica_type
 
         # Find the IP of the virtualip node that was shut down
         virtualip_name=$(sed --quiet --regexp-extended 's/^(virtualip.*):/\1/p' "$guests_yml")
@@ -142,13 +159,18 @@ rlJournalStart
         if ping -c1 "$virtualip"; then
             rlRun "ssh -i $tmt_tree_provision/$virtualip_name/id_ecdsa root@$virtualip -oStrictHostKeyChecking=no shutdown"
         fi
+
         # Replace mssql_ha_virtual_ip with our virtualip value
         tests_path="$collection_path"/ansible_collections/fedora/linux_system_roles/tests/"$SR_REPO_NAME"/
         test_playbooks=$(lsrGetTests "$tests_path")
         collection_role_path="$collection_path"/ansible_collections/fedora/linux_system_roles/roles/"$SR_REPO_NAME"
         collection_vars_path="$collection_role_path"/vars
-        sed -i "s/mssql_ha_virtual_ip: .*/mssql_ha_virtual_ip: $virtualip/g" "$tests_path"/tests_configure_ha_cluster_external.yml
-        rlRun "grep '^ *mssql_ha_virtual_ip' $tests_path/tests_configure_ha_cluster_external.yml"
+        sed -i "s/mssql_ha_virtual_ip: .*/mssql_ha_virtual_ip: $virtualip/g" \
+            "$tests_path"/tests_configure_ha_cluster_external.yml \
+            "$tests_path"/tests_configure_ha_cluster_external_read_only.yml
+        rlRun "grep '^ *mssql_ha_virtual_ip' \
+            $tests_path/tests_configure_ha_cluster_external.yml \
+            $tests_path/tests_configure_ha_cluster_external_read_only.yml"
     rlPhaseEnd
     rlPhaseStartTest
         os_ver=$(sed --quiet "/managed-node1\:/,/^[^ ]/p" "$guests_yml" | sed --quiet --regexp-extended 's/^[ ]*VERSION\: (.*)/\1/p' | sed "s/'//g" | sed 's/ /_/g')
@@ -170,6 +192,8 @@ rlJournalStart
                 LOGFILE="${test_playbook_basename%.*}"-ANSIBLE-"$SR_ANSIBLE_VER"-"$tmt_plan"-"$mssql_version"
                 if [ "$test_playbook_basename" = "tests_configure_ha_cluster_external.yml" ]; then
                     lsrRunPlaybook "$test_playbook" "$inventory_external" "$SR_SKIP_TAGS" "" "$LOGFILE" "${SR_ANSIBLE_VERBOSITY:--vv}"
+                if [ "$test_playbook_basename" = "tests_configure_ha_cluster_external_read_only.yml" ]; then
+                    lsrRunPlaybook "$test_playbook" "$inventory_external_read_only" "$SR_SKIP_TAGS" "" "$LOGFILE" "${SR_ANSIBLE_VERBOSITY:--vv}"
                 elif [ "$test_playbook_basename" = "tests_configure_ha_cluster_read_scale.yml" ]; then
                     lsrRunPlaybook "$test_playbook" "$inventory_read_scale" "$SR_SKIP_TAGS" "" "$LOGFILE" "${SR_ANSIBLE_VERBOSITY:--vv}"
                 fi

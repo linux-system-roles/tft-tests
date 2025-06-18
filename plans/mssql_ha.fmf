@@ -37,7 +37,7 @@ environment:
     PYTHON_VERSION: 3.12
     SR_REPO_NAME: mssql
     # new var name: SR_ONLY_TESTS: ""
-    SYSTEM_ROLES_ONLY_TESTS: "tests_configure_ha_cluster_external.yml tests_configure_ha_cluster_read_scale.yml"
+    # SYSTEM_ROLES_ONLY_TESTS: "tests_configure_ha_cluster_external.yml tests_configure_ha_cluster_read_scale.yml tests_configure_ha_cluster_external_read_only.yml"
     SR_TEST_LOCAL_CHANGES: false
     SR_PR_NUM: ""
     SR_LSR_USER: ""
