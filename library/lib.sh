@@ -666,9 +666,13 @@ lsrGenerateTestDisks() {
     done
 }
 
-lsrMssqlHaUpdateInventory() {
+lsrAppendHostVarsToInventory() {
     local keys values key value
     local inventory=$1
+    # Name of array where:
+    #   name or array - name a managed node to set vars for
+    #   keys - managed nodes to set vars for
+    #   values - vars values
     local arr_name=$2
     eval "keys=(\${!${arr_name}[@]})"
     eval "values=(\${${arr_name}[@]})"
@@ -677,7 +681,7 @@ lsrMssqlHaUpdateInventory() {
         key="${keys[$i]}"
         if grep "$key" "$inventory"; then
             value="${values[$i]}"
-            rlRun "sed -i \"/$key:/a\ \ \ \ \ \ mssql_ha_replica_type: $value\" $inventory"
+            rlRun "sed -i \"/$key:/a\ \ \ \ \ \ $arr_name: $value\" $inventory"
         fi
     done
     rlRun "cat $inventory"
