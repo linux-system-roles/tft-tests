@@ -120,37 +120,39 @@ rlJournalStart
         inventory_read_scale=$(lsrPrepareInventoryVars "$tmt_tree_provision" "$guests_yml")
         inventory_external_read_only=$(lsrPrepareInventoryVars "$tmt_tree_provision" "$guests_yml")
 
-        # Set mssql_ha_repolica_type variables in inventories
+        # Set mssql_ha_replica_type variables in inventories
         declare -A mssql_ha_replica_type
         mssql_ha_replica_type[managed-node1]=primary
         mssql_ha_replica_type[managed-node2]=synchronous
-        # mssql_ha_replica_type is used below when calling lsrMssqlHaUpdateInventory
+        # mssql_ha_replica_type is used below when calling lsrAppendHostVarsToInventory
         # shellcheck disable=SC2034
         mssql_ha_replica_type[managed-node3]=witness
-        lsrMssqlHaUpdateInventory "$inventory_external" mssql_ha_replica_type
-        lsrMssqlHaUpdateInventory "$inventory_external_read_only" mssql_ha_replica_type
+        lsrAppendHostVarsToInventory "$inventory_external" mssql_ha_replica_type
+        lsrAppendHostVarsToInventory "$inventory_external_read_only" mssql_ha_replica_type
         unset mssql_ha_replica_type
 
         declare -A mssql_ha_replica_type
         mssql_ha_replica_type[managed-node1]=primary
         mssql_ha_replica_type[managed-node2]=synchronous
-        # mssql_ha_replica_type is used below when calling lsrMssqlHaUpdateInventory
+        # mssql_ha_replica_type is used below when calling lsrAppendHostVarsToInventory
         # shellcheck disable=SC2034
         mssql_ha_replica_type[managed-node3]=asynchronous
-        lsrMssqlHaUpdateInventory "$inventory_read_scale" mssql_ha_replica_type
+        lsrAppendHostVarsToInventory "$inventory_read_scale" mssql_ha_replica_type
 
         # Set mssql_ha_ag_secondary_role_allow_connections variables in inventories
         declare -A mssql_ha_ag_secondary_role_allow_connections
         mssql_ha_ag_secondary_role_allow_connections[managed-node1]=ALL
+        # mssql_ha_ag_secondary_role_allow_connections is used below when calling lsrAppendHostVarsToInventory
+        # shellcheck disable=SC2034
         mssql_ha_ag_secondary_role_allow_connections[managed-node2]=READ_ONLY
-        lsrMssqlHaUpdateInventory "$inventory_external_read_only" mssql_ha_ag_secondary_role_allow_connections
-        unset mssql_ha_replica_type
+        lsrAppendHostVarsToInventory "$inventory_external_read_only" mssql_ha_ag_secondary_role_allow_connections
 
-        # Set mssql_ha_ag_secondary_role_allow_connections variables in inventories
-        declare -A mssql_ha_ag_secondary_role_allow_connections
-        mssql_ha_ag_secondary_role_allow_connections[managed-node1]="('managed_host2')"
-        lsrMssqlHaUpdateInventory "$inventory_external_read_only" mssql_ha_ag_secondary_role_allow_connections
-        unset mssql_ha_replica_type
+        # Set mssql_ha_ag_read_only_routing_list variables in inventories
+        declare -A mssql_ha_ag_read_only_routing_list
+        # mssql_ha_ag_read_only_routing_list is used below when calling lsrAppendHostVarsToInventory
+        # shellcheck disable=SC2034
+        mssql_ha_ag_read_only_routing_list[managed-node1]="('managed-node2')"
+        lsrAppendHostVarsToInventory "$inventory_external_read_only" mssql_ha_ag_read_only_routing_list
 
         # Find the IP of the virtualip node that was shut down
         virtualip_name=$(sed --quiet --regexp-extended 's/^(virtualip.*):/\1/p' "$guests_yml")
@@ -192,7 +194,7 @@ rlJournalStart
                 LOGFILE="${test_playbook_basename%.*}"-ANSIBLE-"$SR_ANSIBLE_VER"-"$tmt_plan"-"$mssql_version"
                 if [ "$test_playbook_basename" = "tests_configure_ha_cluster_external.yml" ]; then
                     lsrRunPlaybook "$test_playbook" "$inventory_external" "$SR_SKIP_TAGS" "" "$LOGFILE" "${SR_ANSIBLE_VERBOSITY:--vv}"
-                if [ "$test_playbook_basename" = "tests_configure_ha_cluster_external_read_only.yml" ]; then
+                elif [ "$test_playbook_basename" = "tests_configure_ha_cluster_external_read_only.yml" ]; then
                     lsrRunPlaybook "$test_playbook" "$inventory_external_read_only" "$SR_SKIP_TAGS" "" "$LOGFILE" "${SR_ANSIBLE_VERBOSITY:--vv}"
                 elif [ "$test_playbook_basename" = "tests_configure_ha_cluster_read_scale.yml" ]; then
                     lsrRunPlaybook "$test_playbook" "$inventory_read_scale" "$SR_SKIP_TAGS" "" "$LOGFILE" "${SR_ANSIBLE_VERBOSITY:--vv}"
