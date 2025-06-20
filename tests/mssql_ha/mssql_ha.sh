@@ -24,7 +24,7 @@ SR_TEST_LOCAL_CHANGES="${SR_TEST_LOCAL_CHANGES:-false}"
 # SR_ONLY_TESTS
 #  Optional: Space separated names of test playbooks to test. E.g. "tests_imuxsock_files.yml tests_relp.yml"
 #  If empty, tests all tests in tests/tests_*.yml
-SYSTEM_ROLES_ONLY_TESTS="${SYSTEM_ROLES_ONLY_TESTS:-tests_configure_ha_cluster_external.yml tests_configure_ha_cluster_read_scale.yml}"
+SR_ONLY_TESTS="${SR_ONLY_TESTS:-tests_configure_ha_cluster_external.yml tests_configure_ha_cluster_read_scale.yml tests_configure_ha_cluster_external_read_only.yml}"
 [ -n "$SYSTEM_ROLES_ONLY_TESTS" ] && export SR_ONLY_TESTS="$SYSTEM_ROLES_ONLY_TESTS"
 #
 # SR_EXCLUDED_TESTS
