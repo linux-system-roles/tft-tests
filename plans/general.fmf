@@ -21,9 +21,9 @@ environment:
     ANSIBLE_VER: 2.17
     SR_REPO_NAME: ""
     # new var name: SR_PYTHON_VERSION: 3.12
-    PYTHON_VERSION: 3.12
+    SR_PYTHON_VERSION: 3.12
     # new var name: SR_ONLY_TESTS: ""
-    SYSTEM_ROLES_ONLY_TESTS: ""
+    SR_ONLY_TESTS: ""
     SR_TEST_LOCAL_CHANGES: false
     SR_PR_NUM: ""
     SR_LSR_USER: ""
