@@ -16,6 +16,6 @@ nodes=$(sed --quiet --regexp-extended 's/(^[^ ]*):$/\1/p' "$guests_yml" | sort)
 for node in $nodes; do
     id_ecdsa=$plan_abs/provision/$node/id_ecdsa
     ip_addr=$(sed --quiet "/$node\:/,/^[^ ]/p" "$guests_yml"  | sed --quiet --regexp-extended 's/primary-address: (.*)/\1/p' | awk '$1=$1')
-    ssh_cmd="$node: ssh -oPasswordAuthentication=no -oStrictHostKeyChecking=no -i $id_ecdsa root@$ip_addr"
-    echo "$ssh_cmd"
+    echo "$node:"
+    echo "  ssh -oPasswordAuthentication=no -oStrictHostKeyChecking=no -i $id_ecdsa root@$ip_addr"
 done
