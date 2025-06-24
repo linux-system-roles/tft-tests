@@ -260,6 +260,7 @@ lsrConvertToCollection() {
     fi
     # Remove role that was installed as a dependency
     rlRun "rm -rf $collection_path/ansible_collections/fedora/linux_system_roles/roles/$role_name"
+    rlRun "rm -rf $collection_path/ansible_collections/fedora/linux_system_roles/tests/$role_name"
     # Remove performancecopilot vendored by metrics. It will be generated during a conversion to collection.
     if [ "$role_name" = "metrics" ]; then
         rlRun "rm -rf $collection_path/ansible_collections/fedora/linux_system_roles/vendor/github.com/performancecopilot/ansible-pcp"
