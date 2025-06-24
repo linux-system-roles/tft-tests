@@ -47,15 +47,14 @@ jobs:
     name: Get info from test roles
     runs-on: ubuntu-latest
     outputs:
-      postfix_memory: ${{ steps.memory.outputs.postfix_memory }}
-      postfix_supported_platforms: ${{ steps.supported_platforms.outputs.postfix_supported_platforms }}
+      metrics_memory: ${{ steps.memory.outputs.metrics_memory }}
+      metrics_supported_platforms: ${{ steps.supported_platforms.outputs.metrics_supported_platforms }}
       mssql_memory: ${{ steps.memory.outputs.mssql_memory }}
       mssql_supported_platforms: ${{ steps.supported_platforms.outputs.mssql_supported_platforms }}
     strategy:
       matrix:
         test_role:
-          - postfix
-          - mssql
+          - metrics
     steps:
       - name: Checkout the ${{ matrix.test_role }} repo
         uses: actions/checkout@v4
@@ -144,7 +143,7 @@ jobs:
 
       - name: Set commit status as pending
         if: |
-          contains(needs.prepare_vars.outputs.postfix_supported_platforms, matrix.platform)
+          contains(needs.prepare_vars.outputs.metrics_supported_platforms, matrix.platform)
           || contains(needs.prepare_vars.outputs.mssql_supported_platforms, matrix.platform)
         uses: myrotvorets/set-commit-status-action@master
         with:
@@ -156,7 +155,7 @@ jobs:
 
       - name: Set commit status as success with a description that platform is skipped
         if: |
-          !contains(needs.prepare_vars.outputs.postfix_supported_platforms, matrix.platform)
+          !contains(needs.prepare_vars.outputs.metrics_supported_platforms, matrix.platform)
           && !contains(needs.prepare_vars.outputs.mssql_supported_platforms, matrix.platform)
         uses: myrotvorets/set-commit-status-action@master
         with:
@@ -166,10 +165,10 @@ jobs:
           description: The role does not support this platform. Skipping.
           targetUrl: ""
 
-      - name: Run general plan against postfix
+      - name: Run general plan against metrics
         uses: sclorg/testing-farm-as-github-action@v3
         continue-on-error: true
-        if: contains(needs.prepare_vars.outputs.postfix_supported_platforms, matrix.platform)
+        if: contains(needs.prepare_vars.outputs.metrics_supported_platforms, matrix.platform)
         with:
           git_url: ${{ github.event.repository.html_url }}
           git_ref: ${{ needs.head_sha.outputs.head_sha }}
@@ -177,7 +176,8 @@ jobs:
           environment_settings: '{ "provisioning": { "tags": { "BusinessUnit": "system_roles" } } }'
           # Keeping SR_ARTIFACTS_URL at the bottom makes the link in logs clickable
           variables: "ANSIBLE_VER=${{ matrix.ansible_version }};\
-            SR_REPO_NAME=postfix;\
+            SR_REPO_NAME=metrics;\
+            SR_ONLY_TESTS=metrics/tests_verify_auth.yml;\
             SR_GITHUB_ORG=${{ github.repository_owner }};\
             SR_ARTIFACTS_DIR=${{ steps.set_vars.outputs.SR_ARTIFACTS_DIR }};\
             SR_TEST_LOCAL_CHANGES=false;\
@@ -193,10 +193,10 @@ jobs:
           tf_scope: private
           api_key: ${{ secrets.TF_API_KEY_RH }}
           update_pull_request_status: false
-          tmt_hardware: '{ "memory": ">= ${{ needs.prepare_vars.outputs.postfix_memory }} MB" }'
+          tmt_hardware: '{ "memory": ">= ${{ needs.prepare_vars.outputs.metrics_memory }} MB" }'
           tmt_plan_filter: "tag:general"
 
-      # Running separately to avoid using SR_REPO_NAME=postfix in plans related to other roles
+      # Running separately to avoid using SR_REPO_NAME=metrics in plans related to other roles
       - name: Run mssql_ha plan against mssql
         uses: sclorg/testing-farm-as-github-action@v3
         if: contains(needs.prepare_vars.outputs.mssql_supported_platforms, matrix.platform)
@@ -230,7 +230,7 @@ jobs:
         uses: myrotvorets/set-commit-status-action@master
         if: |
           always()
-          && (contains(needs.prepare_vars.outputs.postfix_supported_platforms, matrix.platform)
+          && (contains(needs.prepare_vars.outputs.metrics_supported_platforms, matrix.platform)
           || contains(needs.prepare_vars.outputs.mssql_supported_platforms, matrix.platform))
         with:
           sha: ${{ needs.head_sha.outputs.head_sha }}
