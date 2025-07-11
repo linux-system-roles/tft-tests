@@ -195,9 +195,7 @@ rlJournalStart
                 # Replace mssql_version value to one of the supported versions
                 sed -i "s/mssql_version: [0-9]*$/mssql_version: $mssql_version/g" "$test_playbook"
                 rlRun "grep 'mssql_version: [0-9]*$' $test_playbook"
-                # tmt_plan is assigned at lsrPrepTestVars
-                # shellcheck disable=SC2154
-                LOGFILE="${test_playbook_basename%.*}"-ANSIBLE-"$SR_ANSIBLE_VER"-"$tmt_plan"-"$mssql_version"
+                LOGFILE="${test_playbook_basename%.*}"-ANSIBLE-"$SR_ANSIBLE_VER"-"$TMT_PLAN"-"$mssql_version"
                 if [ "$test_playbook_basename" = "tests_configure_ha_cluster_external.yml" ]; then
                     lsrRunPlaybook "$test_playbook" "$inventory_external" "$SR_SKIP_TAGS" "" "$LOGFILE" "${SR_ANSIBLE_VERBOSITY:--vv}"
                 elif [ "$test_playbook_basename" = "tests_configure_ha_cluster_external_read_only.yml" ]; then

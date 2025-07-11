@@ -18,7 +18,6 @@ rlJournalStart
     rlPhaseStartSetup
         rlRun "rlImport library"
         lsrLabBosRepoWorkaround
-        lsrPrepTestVars
         for required_var in "${SR_REQUIRED_VARS[@]}"; do
             if [ -z "${!required_var}" ]; then
                 rlDie "This required variable is unset: $required_var "

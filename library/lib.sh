@@ -9,13 +9,16 @@
 #   library-prefix = library
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-lsrPrepTestVars() {
-    tmt_tree_parent=${TMT_TREE%/*}
-    tmt_plan=$(basename "$tmt_tree_parent")
-    tmt_tree_provision=$tmt_tree_parent/provision
-    guests_yml=${tmt_tree_provision}/guests.yaml
-    declare -gA ANSIBLE_ENVS
-}
+# Variables for our tests to define on library import
+TMT_TREE_PARENT=${TMT_TREE%/*}
+TMT_PLAN=$(basename "$TMT_TREE_PARENT")
+TMT_TREE_PROVISION=$TMT_TREE_PARENT/provision
+TMT_TREE_DISCOVER="$TMT_TREE_PARENT"/discover
+# TMT_TREE_EXECUTE is used in a downstream library
+# shellcheck disable=SC2034
+TMT_TREE_EXECUTE="$TMT_TREE_PARENT"/execute
+GUESTS_YML=${TMT_TREE_PROVISION}/guests.yaml
+declare -gA ANSIBLE_ENVS
 
 lsrLabBosRepoWorkaround() {
     sed -i 's|\.lab\.bos.|.devel.|g' /etc/yum.repos.d/*.repo
@@ -383,7 +386,7 @@ lsrIsVirtual() {
 lsrUploadLogs() {
     local logfile=$1
     local role_name=$2
-    local id_rsa_path pr_substr os artifact_dirname target_dir filesubmitout
+    local id_rsa_path pr_substr os artifact_dirname target_dir
     rlFileSubmit "$logfile"
     if [ -z "$SR_LSR_SSH_KEY" ]; then
         return
@@ -517,9 +520,9 @@ lsrRunPlaybook() {
     if [ "$result" = FAIL ]; then
         # collect journald output from failed machine
         if [ -n "$node" ]; then
-            lsrExecuteOnNode "$node" "journalctl --since '$playbook_start_ts' -ex 2>/dev/null" "false" >> $LOGFILE
+            lsrExecuteOnNode "$node" "journalctl --since '$playbook_start_ts' -ex 2>/dev/null" "false" >> "$LOGFILE"
         else
-            journalctl --since "$playbook_start_ts" -ex 2>/dev/null >> $LOGFILE
+            journalctl --since "$playbook_start_ts" -ex 2>/dev/null >> "$LOGFILE"
         fi
     fi
 
@@ -855,7 +858,7 @@ lsrReserveSystems() {
 #   should return 0 only when the library is ready to serve.
 #
 #   This library does not do anything, it is only a list of functions, so simply returning 0
-rolesUpstreamLibraryLoaded() {
+rolesLibraryLoaded() {
     rlLog "Library loaded!"
     return 0
 }
