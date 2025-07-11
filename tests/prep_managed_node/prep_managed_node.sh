@@ -24,16 +24,12 @@ rlJournalStart
                 rlDie "This required variable is unset: $required_var "
             fi
         done
-        # tmt_tree_provision is defined in lsrPrepTestVars
-        # shellcheck disable=SC2154
-        is_virtual=$(lsrIsVirtual "$tmt_tree_provision")
+        is_virtual=$(lsrIsVirtual)
         if [ "$is_virtual" -eq 0 ]; then
-            lsrDistributeSSHKeys "$tmt_tree_provision"
+            lsrDistributeSSHKeys
         fi
-        # guests_yml is defined in lsrPrepTestVars
-        # shellcheck disable=SC2154
-        lsrSetHostname "$guests_yml"
-        lsrBuildEtcHosts "$guests_yml"
+        lsrSetHostname
+        lsrBuildEtcHosts
         lsrEnableHA
         lsrDisableNFV
     rlPhaseEnd

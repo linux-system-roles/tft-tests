@@ -83,12 +83,21 @@ SR_ANSIBLE_VERBOSITY="${SR_ANSIBLE_VERBOSITY:--vv}"
 #   Default is https://raw.githubusercontent.com/linux-system-roles/auto-maintenance/main/callback_plugins/lsr_report_errors.py
 #   This is used to embed an error report in the output log
 SR_REPORT_ERRORS_URL="${SR_REPORT_ERRORS_URL:-https://raw.githubusercontent.com/linux-system-roles/auto-maintenance/main/callback_plugins/lsr_report_errors.py}"
+#
+# SR_RESERVE_SYSTEMS
+#   Set to true to sleep for 10h after test finishes for troubleshooting purposes
+#   You can find IPs of systems from artifacts by looking into workdir/plans/test_playbooks_parallel/provision/guests.yaml
+#   It's best to cancel requests after you finish with `testing-farm cancel`
+SR_RESERVE_SYSTEMS="${SR_RESERVE_SYSTEMS:-false}"
+#   TMT sets True, False with capital letters, need to reset it to bash style
+[ "$SR_RESERVE_SYSTEMS" = True ] && export SR_RESERVE_SYSTEMS=true
+[ "$SR_RESERVE_SYSTEMS" = False ] && export SR_RESERVE_SYSTEMS=false
 
 rlJournalStart
     rlPhaseStartSetup
         rlRun "rlImport library"
         lsrLabBosRepoWorkaround
-        lsrPrepTestVars
+
         for required_var in "${SR_REQUIRED_VARS[@]}"; do
             if [ -z "${!required_var}" ]; then
                 rlDie "This required variable is unset: $required_var "
@@ -113,14 +122,12 @@ rlJournalStart
         fi
         lsrSetAnsibleGathering "$SR_ANSIBLE_GATHERING"
         lsrGetCollectionPath
-        # collection_path and guests_yml is defined in lsrGetCollectionPath
+        # collection_path is defined in lsrGetCollectionPath
         # shellcheck disable=SC2154
         lsrInstallDependencies "$role_path" "$collection_path"
         lsrEnableCallbackPlugins "$collection_path"
         lsrConvertToCollection "$role_path" "$collection_path" "$SR_REPO_NAME"
-        # tmt_tree_provision and guests_yml is defined in lsrPrepTestVars
-        # shellcheck disable=SC2154
-        inventory=$(lsrPrepareInventoryVars "$tmt_tree_provision" "$guests_yml")
+        inventory=$(lsrPrepareInventoryVars)
         rlRun "cat $inventory"
         tests_path="$collection_path"/ansible_collections/fedora/linux_system_roles/tests/"$SR_REPO_NAME"/
         test_playbooks=$(lsrGetTests "$tests_path")
@@ -130,7 +137,8 @@ rlJournalStart
         fi
     rlPhaseEnd
     rlPhaseStartTest
-        managed_nodes=$(lsrGetManagedNodes "$guests_yml")
-        lsrRunPlaybooksParallel "$inventory" "$SR_SKIP_TAGS" "$test_playbooks" "$managed_nodes" "false" "$SR_ANSIBLE_VERBOSITY"
+        managed_nodes=$(lsrGetManagedNodes)
+        lsrRunPlaybooksParallel "$SR_SKIP_TAGS" "$test_playbooks" "$managed_nodes" "false" "$SR_ANSIBLE_VERBOSITY"
+        lsrReserveSystems "$SR_RESERVE_SYSTEMS"
     rlPhaseEnd
 rlJournalEnd

@@ -71,12 +71,5 @@ discover:
     how: fmf
     where: control_node
     filter: tag:mssql_ha
-  # Uncomment this step for troubleshooting
-  # This is required because currently testing-farm cli doesn't support running multi-node plans
-  # You can set ID_RSA_PUB in the environment section above to your public key to distribute it to nodes
-  # - name: Inject your ssh public key to test systems
-  #   how: fmf
-  #   where: control_node
-  #   filter: tag:reserve_system
 execute:
     how: tmt
