@@ -127,8 +127,7 @@ rlJournalStart
         lsrInstallDependencies "$role_path" "$collection_path"
         lsrEnableCallbackPlugins "$collection_path"
         lsrConvertToCollection "$role_path" "$collection_path" "$SR_REPO_NAME"
-        inventory=$(lsrPrepareInventoryVars)
-        rlRun "cat $inventory"
+        lsrPrepareNodesInventories
         tests_path="$collection_path"/ansible_collections/fedora/linux_system_roles/tests/"$SR_REPO_NAME"/
         test_playbooks=$(lsrGetTests "$tests_path")
         if [ "${GET_PYTHON_MODULES:-}" = true ]; then
