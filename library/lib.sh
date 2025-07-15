@@ -297,7 +297,7 @@ lsrGetNodes() {
 }
 
 lsrGetNodeName() {
-    local node_pat=$2
+    local node_pat=$1
     sed --quiet --regexp-extended "s/(^$node_pat.*):$/\1/p" "$GUESTS_YML"
 }
 
@@ -354,27 +354,25 @@ lsrGetAnsibleKeyPublic() {
 }
 
 lsrPrepareInventoryVars() {
-    local tmt_tree_provision=$1
-    local guests_yml=$2
     local inventory is_virtual  managed_nodes
     inventory=$(mktemp -t inventory-XXX.yml)
     # TMT_TOPOLOGY_ variables are not available in tmt try.
     # Reading topology from guests.yml for compatibility with tmt try
-    is_virtual=$(lsrIsVirtual "$tmt_tree_provision")
-    managed_nodes=$(lsrGetManagedNodes "$guests_yml")
-    control_node_name=$(lsrGetNodeName "$guests_yml" "control-node")
+    is_virtual=$(lsrIsVirtual "$TMT_TREE_PROVISION")
+    managed_nodes=$(lsrGetManagedNodes)
+    control_node_name=$(lsrGetNodeName "control-node")
     echo "---
 all:
   hosts:" > "$inventory"
     for managed_node in $managed_nodes; do
-        ip_addr=$(lsrGetNodeIp "$guests_yml" "$managed_node")
+        ip_addr=$(lsrGetNodeIp "$managed_node")
         {
         echo "    $managed_node:"
         echo "      ansible_host: $ip_addr"
         echo "      ansible_ssh_extra_args: \"-o StrictHostKeyChecking=no\""
         } >> "$inventory"
         if [ "$is_virtual" -eq 0 ]; then
-            echo "      ansible_ssh_private_key_file: ${tmt_tree_provision}/$control_node_name/id_ecdsa" >> "$inventory"
+            echo "      ansible_ssh_private_key_file: ${TMT_TREE_PROVISION}/$control_node_name/id_ecdsa" >> "$inventory"
         fi
     done
     rlRun "echo $inventory"
@@ -614,7 +612,7 @@ lsrRunPlaybooksParallel() {
                 else
                     LOGFILE="${playbook_basename%.*}"-ANSIBLE-"$SR_ANSIBLE_VER"-$TMT_PLAN
                 fi
-                lsrRunPlaybook "$test_playbook" "$inventory" "$skip_tags" "$managed_node" "$LOGFILE" "$verbosity" &
+                lsrRunPlaybook "$skip_tags" "$test_playbook" "$managed_node" "$LOGFILE" "$verbosity" &
                 sleep 1
                 break
             fi

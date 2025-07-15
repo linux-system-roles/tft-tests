@@ -93,6 +93,15 @@ SR_RESERVE_SYSTEMS="${SR_RESERVE_SYSTEMS:-false}"
 [ "$SR_RESERVE_SYSTEMS" = True ] && export SR_RESERVE_SYSTEMS=true
 [ "$SR_RESERVE_SYSTEMS" = False ] && export SR_RESERVE_SYSTEMS=false
 
+echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+echo "~~~ Environment Variables Definition - BEGIN"
+echo "ARCH_CONTROLLER=${ARCH_CONTROLLER}"
+echo "ARCH_MANAGED_NODE=${ARCH_MANAGED_NODE}"
+echo "COMPOSE_CONTROLLER=${COMPOSE_CONTROLLER}"
+echo "COMPOSE_MANAGED_NODE=${COMPOSE_MANAGED_NODE}"
+env | grep -E '^SR_'
+echo "~~~ Environment Variables Definition - END"
+
 rlJournalStart
     rlPhaseStartSetup
         rlRun "rlImport library"
