@@ -437,7 +437,7 @@ lsrUploadLogs() {
     fi
     rlRun "ssh -i $id_rsa_path -o StrictHostKeyChecking=no $SR_LSR_USER@$SR_LSR_DOMAIN mkdir -p $SR_ARTIFACTS_DIR"
     chmod +r "$GUESTS_YML"
-    rlRun "scp -i $id_rsa_path -o StrictHostKeyChecking=no $logfile $GUESTS_YML $SR_LSR_USER@$SR_LSR_DOMAIN:$ARTIFACTS_DIR/"
+    rlRun "scp -i $id_rsa_path -o StrictHostKeyChecking=no $logfile $GUESTS_YML $SR_LSR_USER@$SR_LSR_DOMAIN:$SR_ARTIFACTS_DIR/"
     rlLogInfo "Logs are uploaded at $SR_ARTIFACTS_URL"
     rlRun "rm $id_rsa_path"
 }
