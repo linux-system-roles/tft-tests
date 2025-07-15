@@ -122,9 +122,9 @@ rlJournalStart
         lsrInstallDependencies "$role_path" "$collection_path"
         lsrEnableCallbackPlugins "$collection_path"
         lsrConvertToCollection "$role_path" "$collection_path" "$SR_REPO_NAME"
-        inventory_external=$(lsrPrepareInventoryVars)
-        inventory_read_scale=$(lsrPrepareInventoryVars)
-        inventory_external_read_only=$(lsrPrepareInventoryVars)
+        inventory_external=$(lsrPrepareGlobalInventory)
+        inventory_read_scale=$(lsrPrepareGlobalInventory)
+        inventory_external_read_only=$(lsrPrepareGlobalInventory)
 
         # Set mssql_ha_replica_type variables in inventories
         declare -A mssql_ha_replica_type

@@ -6,7 +6,7 @@
 #   Author: Sergei Petrosian <spetrosi@redhat.com>
 #
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#   library-prefix = library
+#   library-prefix = rolesUpstream
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # Variables for our tests to define on library import
@@ -353,7 +353,8 @@ lsrGetAnsibleKeyPublic() {
     echo "$control_node_key".pub
 }
 
-lsrPrepareInventoryVars() {
+lsrPrepareGlobalInventory() {
+    # Prepare inventory file containing all managed nodes
     local inventory is_virtual  managed_nodes
     inventory=$(mktemp -t inventory-XXX.yml)
     # TMT_TOPOLOGY_ variables are not available in tmt try.
@@ -883,7 +884,7 @@ lsrReserveSystems() {
 #   should return 0 only when the library is ready to serve.
 #
 #   This library does not do anything, it is only a list of functions, so simply returning 0
-libraryLibraryLoaded() {
+rolesUpstreamLibraryLoaded() {
     rlLog "Library loaded!"
     return 0
 }

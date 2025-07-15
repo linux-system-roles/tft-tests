@@ -17,12 +17,9 @@ provision:
     role: managed_node
     connection: system
 environment:
-    # new var name: SR_ANSIBLE_VER: 2.17
-    ANSIBLE_VER: 2.17
+    SR_ANSIBLE_VER: 2.17
     SR_REPO_NAME: ""
-    # new var name: SR_PYTHON_VERSION: 3.12
     SR_PYTHON_VERSION: 3.12
-    # new var name: SR_ONLY_TESTS: ""
     SR_ONLY_TESTS: ""
     SR_TEST_LOCAL_CHANGES: false
     SR_PR_NUM: ""
@@ -31,8 +28,7 @@ environment:
     SR_LSR_SSH_KEY: ""
     SR_ARTIFACTS_DIR: ""
     SR_ARTIFACTS_URL: ""
-    # new var name: SR_TFT_DEBUG: false
-    LSR_TFT_DEBUG: false
+    SR_TFT_DEBUG: false
 prepare:
   - name: Use vault.centos.org repos (CS 7, 8 EOL workaround)
     # Providing order to run prep tasks as first because beakerlib is required
