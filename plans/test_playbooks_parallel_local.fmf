@@ -1,4 +1,4 @@
-# Example cmd: tmt -c initiator=human try -p /plans/test_playbooks_parallel_local centos-stream-9
+# Example cmd: tmt try -p /plans/test_playbooks_parallel_local centos-stream-9
 summary: A plan for running locally with tmt
 tag: playbooks_parallel_local
 provision:

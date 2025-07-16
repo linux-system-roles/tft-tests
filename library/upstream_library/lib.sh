@@ -14,7 +14,7 @@ TMT_TREE_PARENT=${TMT_TREE%/*}
 TMT_PLAN=$(basename "$TMT_TREE_PARENT")
 TMT_TREE_PROVISION=$TMT_TREE_PARENT/provision
 TMT_TREE_DISCOVER="$TMT_TREE_PARENT"/discover
-# TMT_TREE_EXECUTE is used in a downstream library
+# TMT_TREE_EXECUTE is used in downstream tests
 # shellcheck disable=SC2034
 TMT_TREE_EXECUTE="$TMT_TREE_PARENT"/execute
 GUESTS_YML=${TMT_TREE_PROVISION}/guests.yaml
@@ -74,7 +74,7 @@ lsrCloneRepo() {
 
 lsrGetRoleDir() {
     local repo_name=$1
-    if [ "$SR_TEST_LOCAL_CHANGES" == True ]; then
+    if [ "$SR_TEST_LOCAL_CHANGES" == true ]; then
         rlLog "Test from local changes"
         role_path="$TMT_TREE"
     else
@@ -528,7 +528,7 @@ lsrRunPlaybook() {
     playbook_start_ts=$(date '+%Y-%m-%d %H:%M:%S')
 
     # If SR_TFT_DEBUG is true, print output to terminal
-    if [ "$SR_TFT_DEBUG" == true ] || [ "$SR_TFT_DEBUG" == True ]; then
+    if [ "$SR_TFT_DEBUG" == true ]; then
         rlRun "ANSIBLE_LOG_PATH=$LOGFILE $cmd && result=SUCCESS" 0 "$log_msg"
     else
         rlRun "$cmd &> $LOGFILE && result=SUCCESS" 0 "$log_msg"
@@ -607,7 +607,7 @@ lsrRunPlaybooksParallel() {
                 test_playbook=${test_playbooks_arr[0]}
                 test_playbooks_arr=("${test_playbooks_arr[@]:1}") # Remove first element from array
                 playbook_basename=$(basename "$test_playbook")
-                if [ "$rolename_in_logfile" == true ] || [ "$rolename_in_logfile" == True ]; then
+                if [ "$rolename_in_logfile" == true ]; then
                     role_name=$(lsrGetRoleNameFromTestPlaybook "$test_playbook")
                     LOGFILE="$role_name"-"${playbook_basename%.*}"-ANSIBLE-"$SR_ANSIBLE_VER"-$TMT_PLAN
                 else
@@ -716,13 +716,13 @@ lsrDiskProvisionerRequired() {
 }
 
 lsrGetIdentityFile() {
-    local is_virtual control_node_name control_node_key
+    local node=$1
+    local is_virtual node_key
 
     is_virtual=$(lsrIsVirtual)
     if [ "$is_virtual" -eq 0 ]; then
-        control_node_name=$(lsrGetNodeName "control-node")
-        control_node_key=$(lsrGetNodeKeyPrivate "$control_node_name")
-        echo "-i $control_node_key"
+        node_key=$(lsrGetNodeKeyPrivate "$node")
+        echo "-i $node_key"
     fi
 }
 
@@ -733,7 +733,7 @@ lsrCopyToNode() {
     local forward_to_log=$4
     local identity_file_args node_ip scp_cmd logfile
     logfile="$node"_tf.log
-    identity_file_args=$(lsrGetIdentityFile)
+    identity_file_args=$(lsrGetIdentityFile "$node")
     node_ip=$(lsrGetNodeIp "$node")
     # Passing some variables without quotes to avoid shell considering them a single argument
     # shellcheck disable=SC2206
@@ -755,7 +755,7 @@ lsrExecuteOnNode() {
     local forward_to_log=$3
     local identity_file_args node_ip ssh_cmd logfile
     logfile="$node"_tf.log
-    identity_file_args=$(lsrGetIdentityFile)
+    identity_file_args=$(lsrGetIdentityFile "$node")
     node_ip=$(lsrGetNodeIp "$node")
     # Passing identity_file_args without quotes to avoid shell considering it a single argument
     # shellcheck disable=SC2206

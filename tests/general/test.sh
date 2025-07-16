@@ -15,6 +15,10 @@
 #   Optional: When true, tests from local changes. When false, test from a repository PR number (when SR_PR_NUM is set) or main branch.
 [ -n "$TEST_LOCAL_CHANGES" ] && export SR_TEST_LOCAL_CHANGES="$TEST_LOCAL_CHANGES"
 SR_TEST_LOCAL_CHANGES="${SR_TEST_LOCAL_CHANGES:-false}"
+#   TMT sets True, False with capital letters, need to reset it to bash style
+[ "$TEST_LOCAL_CHANGES" = True ] && export TEST_LOCAL_CHANGES=true
+[ "$TEST_LOCAL_CHANGES" = False ] && export TEST_LOCAL_CHANGES=false
+
 #
 # SR_PR_NUM
 #   Optional: Number of PR to test. If empty, tests the default branch.
@@ -61,6 +65,10 @@ SR_SKIP_TAGS="--skip-tags tests::nvme,tests::infiniband,tests::bootc-e2e"
 # SR_TFT_DEBUG
 #   Print output of ansible playbooks to terminal in addition to printing it to logfile
 [ -n "$LSR_TFT_DEBUG" ] && export SR_TFT_DEBUG="$LSR_TFT_DEBUG"
+#   TMT sets True, False with capital letters, need to reset it to bash style
+[ "$LSR_TFT_DEBUG" = True ] && export LSR_TFT_DEBUG=true
+[ "$LSR_TFT_DEBUG" = False ] && export LSR_TFT_DEBUG=false
+
 if [ "$(echo "$SR_ONLY_TESTS" | wc -w)" -eq 1 ]; then
     SR_TFT_DEBUG=true
 else
