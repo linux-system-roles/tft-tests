@@ -508,21 +508,32 @@ lsrRunAusearch() {
 
 lsrRunPlaybook() {
     local test_playbook=$1
-    local skip_tags=$2
-    local node=$3
-    local LOGFILE=$4
-    local verbosity="$5"
+    local inventory=$2
+    local skip_tags=$3
+    local node=$4
+    local LOGFILE=$5
+    local verbosity="$6"
     local result=FAIL
-    local cmd log_msg role_name playbook_basename playbook_start_date playbook_start_time
+    local cmd log_msg role_name playbook_basename playbook_start_date playbook_start_time nodes
     role_name=$(lsrGetRoleNameFromTestPlaybook "$test_playbook")
     playbook_basename=$(basename "$test_playbook")
-    inventory=$(lsrGetNodeInventory "$node")
 
+    # When $inventory is impty, $node is required to find inventory
+    if [ -z "$inventory" ]; then
+        inventory=$(lsrGetNodeInventory "$node")
+    fi
+
+    # When $node is empty, it implies that inventory contains multiple nodes
+    nodes=$(grep -E '^\s{4}[a-zA-Z0-9.-]+:' "$inventory" | \
+        awk -F':' '{print $1}' | \
+        sed -E 's/^\s*|\s*$//g' | \
+        tr '\n' ' ' | \
+        sed 's/ $//')
     if [ "${GET_PYTHON_MODULES:-}" = true ]; then
         ANSIBLE_ENVS[ANSIBLE_DEBUG]=true
     fi
     cmd="$(lsrArrtoStr ANSIBLE_ENVS) ansible-playbook -i $inventory $skip_tags $test_playbook $verbosity"
-    log_msg="$role_name: $playbook_basename with ANSIBLE-$SR_ANSIBLE_VER on $node"
+    log_msg="$role_name: $playbook_basename with ANSIBLE-$SR_ANSIBLE_VER on $nodes"
     playbook_start_date=$(date '+%m/%d/%Y')
     playbook_start_time=$(date '+%H:%M:%S')
     playbook_start_ts=$(date '+%Y-%m-%d %H:%M:%S')
@@ -533,7 +544,9 @@ lsrRunPlaybook() {
     else
         rlRun "$cmd &> $LOGFILE && result=SUCCESS" 0 "$log_msg"
     fi
-    lsrRunAusearch "$playbook_start_date" "$playbook_start_time" "$role_name" "$playbook_basename" "$node"
+    for node_name in $nodes; do
+        lsrRunAusearch "$playbook_start_date" "$playbook_start_time" "$role_name" "$playbook_basename" "$node_name"
+    done
 
     logfile_name=$LOGFILE-$result.log
     mv "$LOGFILE" "$logfile_name"
@@ -545,11 +558,9 @@ lsrRunPlaybook() {
     fi
     if [ "$result" = FAIL ]; then
         # collect journald output from failed machine
-        if [ -n "$node" ]; then
-            lsrExecuteOnNode "$node" "journalctl --since '$playbook_start_ts' -ex 2>/dev/null" "false" >> "$LOGFILE"
-        else
-            journalctl --since "$playbook_start_ts" -ex 2>/dev/null >> "$LOGFILE"
-        fi
+        for node_name in $nodes; do
+            lsrExecuteOnNode "$node_name" "journalctl --since '$playbook_start_ts' -ex 2>/dev/null" "false" >> "$LOGFILE"
+        done
     fi
 
     lsrUploadLogs "$LOGFILE" "$role_name"
@@ -613,7 +624,7 @@ lsrRunPlaybooksParallel() {
                 else
                     LOGFILE="${playbook_basename%.*}"-ANSIBLE-"$SR_ANSIBLE_VER"-$TMT_PLAN
                 fi
-                lsrRunPlaybook "$skip_tags" "$test_playbook" "$managed_node" "$LOGFILE" "$verbosity" &
+                lsrRunPlaybook "$test_playbook" "" "$skip_tags" "$managed_node" "$LOGFILE" "$verbosity" &
                 sleep 1
                 break
             fi

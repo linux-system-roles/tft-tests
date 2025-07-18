@@ -97,7 +97,7 @@ SR_RESERVE_SYSTEMS="${SR_RESERVE_SYSTEMS:-false}"
 
 rlJournalStart
     rlPhaseStartSetup
-        rlRun "rlImport library"
+        rlRun "rlImport upstream_library"
         for required_var in "${SR_REQUIRED_VARS[@]}"; do
             if [ -z "${!required_var}" ]; then
                 rlDie "This required variable is unset: $required_var "
@@ -205,6 +205,7 @@ rlJournalStart
                 fi
             done
         done
+        lsrSubmitManagedNodesLogs
         lsrReserveSystems "$SR_RESERVE_SYSTEMS"
     rlPhaseEnd
 rlJournalEnd

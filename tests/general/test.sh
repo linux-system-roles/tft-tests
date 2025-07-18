@@ -155,6 +155,7 @@ rlJournalStart
     rlPhaseStartTest
         managed_nodes=$(lsrGetManagedNodes)
         lsrRunPlaybooksParallel "$SR_SKIP_TAGS" "$test_playbooks" "$managed_nodes" "false" "$SR_ANSIBLE_VERBOSITY"
+        lsrSubmitManagedNodesLogs
         lsrReserveSystems "$SR_RESERVE_SYSTEMS"
     rlPhaseEnd
 rlJournalEnd
