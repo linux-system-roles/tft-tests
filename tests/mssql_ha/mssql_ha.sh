@@ -85,11 +85,19 @@ SR_ANSIBLE_VERBOSITY="${SR_ANSIBLE_VERBOSITY:--vv}"
 #   Default is https://raw.githubusercontent.com/linux-system-roles/auto-maintenance/main/callback_plugins/lsr_report_errors.py
 #   This is used to embed an error report in the output log
 SR_REPORT_ERRORS_URL="${SR_REPORT_ERRORS_URL:-https://raw.githubusercontent.com/linux-system-roles/auto-maintenance/main/callback_plugins/lsr_report_errors.py}"
+#
+# SR_RESERVE_SYSTEMS
+#   Set to true to sleep for 10h after test finishes for troubleshooting purposes
+#   You can find IPs of systems from artifacts by looking into workdir/plans/test_playbooks_parallel/provision/guests.yaml
+#   It's best to cancel requests after you finish with `testing-farm cancel`
+SR_RESERVE_SYSTEMS="${SR_RESERVE_SYSTEMS:-false}"
+#   TMT sets True, False with capital letters, need to reset it to bash style
+[ "$SR_RESERVE_SYSTEMS" = True ] && export SR_RESERVE_SYSTEMS=true
+[ "$SR_RESERVE_SYSTEMS" = False ] && export SR_RESERVE_SYSTEMS=false
 
 rlJournalStart
     rlPhaseStartSetup
-        rlRun "rlImport library"
-        lsrPrepTestVars
+        rlRun "rlImport upstream_library"
         for required_var in "${SR_REQUIRED_VARS[@]}"; do
             if [ -z "${!required_var}" ]; then
                 rlDie "This required variable is unset: $required_var "
@@ -114,11 +122,9 @@ rlJournalStart
         lsrInstallDependencies "$role_path" "$collection_path"
         lsrEnableCallbackPlugins "$collection_path"
         lsrConvertToCollection "$role_path" "$collection_path" "$SR_REPO_NAME"
-        # tmt_tree_provision and guests_yml is defined in lsrPrepTestVars
-        # shellcheck disable=SC2154
-        inventory_external=$(lsrPrepareInventoryVars "$tmt_tree_provision" "$guests_yml")
-        inventory_read_scale=$(lsrPrepareInventoryVars "$tmt_tree_provision" "$guests_yml")
-        inventory_external_read_only=$(lsrPrepareInventoryVars "$tmt_tree_provision" "$guests_yml")
+        inventory_external=$(lsrPrepareGlobalInventory)
+        inventory_read_scale=$(lsrPrepareGlobalInventory)
+        inventory_external_read_only=$(lsrPrepareGlobalInventory)
 
         # Set mssql_ha_replica_type variables in inventories
         declare -A mssql_ha_replica_type
@@ -155,11 +161,11 @@ rlJournalStart
         lsrAppendHostVarsToInventory "$inventory_external_read_only" mssql_ha_ag_read_only_routing_list
 
         # Find the IP of the virtualip node that was shut down
-        virtualip_name=$(sed --quiet --regexp-extended 's/^(virtualip.*):/\1/p' "$guests_yml")
-        virtualip=$(lsrGetNodeIp "$guests_yml" "$virtualip_name")
+        virtualip_name=$(sed --quiet --regexp-extended 's/^(virtualip.*):/\1/p' "$GUESTS_YML")
+        virtualip=$(lsrGetNodeIp "$virtualip_name")
         # Shut down virtualip if it's pingable
         if ping -c1 "$virtualip"; then
-            rlRun "ssh -i $tmt_tree_provision/$virtualip_name/id_ecdsa root@$virtualip -oStrictHostKeyChecking=no shutdown"
+            rlRun "ssh -i $TMT_TREE_PROVISION/$virtualip_name/id_ecdsa root@$virtualip -oStrictHostKeyChecking=no shutdown"
         fi
 
         # Replace mssql_ha_virtual_ip with our virtualip value
@@ -175,7 +181,7 @@ rlJournalStart
             $tests_path/tests_configure_ha_cluster_external_read_only.yml"
     rlPhaseEnd
     rlPhaseStartTest
-        os_ver=$(sed --quiet "/managed-node1\:/,/^[^ ]/p" "$guests_yml" | sed --quiet --regexp-extended 's/^[ ]*VERSION\: (.*)/\1/p' | sed "s/'//g" | sed 's/ /_/g')
+        os_ver=$(sed --quiet "/managed-node1\:/,/^[^ ]/p" "$GUESTS_YML" | sed --quiet --regexp-extended 's/^[ ]*VERSION\: (.*)/\1/p' | sed "s/'//g" | sed 's/ /_/g')
         vars_file_name=CentOS_$os_ver.yml
         # Set supported versions from vars files, first from RedHat.yml, then from OS's file
         for var_file in "$collection_vars_path"/RedHat.yml "$collection_vars_path"/"$vars_file_name"; do
@@ -189,9 +195,7 @@ rlJournalStart
                 # Replace mssql_version value to one of the supported versions
                 sed -i "s/mssql_version: [0-9]*$/mssql_version: $mssql_version/g" "$test_playbook"
                 rlRun "grep 'mssql_version: [0-9]*$' $test_playbook"
-                # tmt_plan is assigned at lsrPrepTestVars
-                # shellcheck disable=SC2154
-                LOGFILE="${test_playbook_basename%.*}"-ANSIBLE-"$SR_ANSIBLE_VER"-"$tmt_plan"-"$mssql_version"
+                LOGFILE="${test_playbook_basename%.*}"-ANSIBLE-"$SR_ANSIBLE_VER"-"$TMT_PLAN"-"$mssql_version"
                 if [ "$test_playbook_basename" = "tests_configure_ha_cluster_external.yml" ]; then
                     lsrRunPlaybook "$test_playbook" "$inventory_external" "$SR_SKIP_TAGS" "" "$LOGFILE" "${SR_ANSIBLE_VERBOSITY:--vv}"
                 elif [ "$test_playbook_basename" = "tests_configure_ha_cluster_external_read_only.yml" ]; then
@@ -201,5 +205,7 @@ rlJournalStart
                 fi
             done
         done
+        lsrSubmitManagedNodesLogs
+        lsrReserveSystems "$SR_RESERVE_SYSTEMS"
     rlPhaseEnd
 rlJournalEnd
