@@ -16,19 +16,24 @@ SR_GITHUB_ORG="${SR_GITHUB_ORG:-linux-system-roles}"
 
 rlJournalStart
     rlPhaseStartSetup
-        rlRun "rlImport upstream_library"
+        rlRun "rlImport library"
         lsrLabBosRepoWorkaround
+        lsrPrepTestVars
         for required_var in "${SR_REQUIRED_VARS[@]}"; do
             if [ -z "${!required_var}" ]; then
                 rlDie "This required variable is unset: $required_var "
             fi
         done
-        is_virtual=$(lsrIsVirtual)
+        # tmt_tree_provision is defined in lsrPrepTestVars
+        # shellcheck disable=SC2154
+        is_virtual=$(lsrIsVirtual "$tmt_tree_provision")
         if [ "$is_virtual" -eq 0 ]; then
-            lsrDistributeSSHKeys
+            lsrDistributeSSHKeys "$tmt_tree_provision"
         fi
-        lsrSetHostname
-        lsrBuildEtcHosts
+        # guests_yml is defined in lsrPrepTestVars
+        # shellcheck disable=SC2154
+        lsrSetHostname "$guests_yml"
+        lsrBuildEtcHosts "$guests_yml"
         lsrEnableHA
         lsrDisableNFV
     rlPhaseEnd
