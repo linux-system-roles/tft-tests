@@ -129,6 +129,7 @@ rlJournalStart
         # role_path is defined in lsrGetRoleDir
         # shellcheck disable=SC2154
         legacy_test_path="$role_path"/tests
+        lsrGenerateTestDisks "$legacy_test_path" start disk_provisioner.sh
         test_playbooks=$(lsrGetTests "$legacy_test_path")
         rlLogInfo "Test playbooks: $test_playbooks"
         if lsrVaultRequired "$legacy_test_path"; then
@@ -150,13 +151,9 @@ rlJournalStart
             # shellcheck disable=SC2086
             lsrSetupGetPythonModules "$test_playbooks"
         fi
-
-        managed_nodes=$(lsrGetManagedNodes)
-        for managed_node in $managed_nodes; do
-            lsrGenerateTestDisks "$tests_path" start disk_provisioner.sh "$managed_node"
-        done
     rlPhaseEnd
     rlPhaseStartTest
+        managed_nodes=$(lsrGetManagedNodes)
         lsrRunPlaybooksParallel "$SR_SKIP_TAGS" "$test_playbooks" "$managed_nodes" "false" "$SR_ANSIBLE_VERBOSITY"
         lsrSubmitManagedNodesLogs
         lsrReserveSystems "$SR_RESERVE_SYSTEMS"
