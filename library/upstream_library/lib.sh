@@ -6,16 +6,19 @@
 #   Author: Sergei Petrosian <spetrosi@redhat.com>
 #
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#   library-prefix = library
+#   library-prefix = rolesUpstream
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-lsrPrepTestVars() {
-    tmt_tree_parent=${TMT_TREE%/*}
-    tmt_plan=$(basename "$tmt_tree_parent")
-    tmt_tree_provision=$tmt_tree_parent/provision
-    guests_yml=${tmt_tree_provision}/guests.yaml
-    declare -gA ANSIBLE_ENVS
-}
+# Variables for our tests to define on library import
+TMT_TREE_PARENT=${TMT_TREE%/*}
+TMT_PLAN=$(basename "$TMT_TREE_PARENT")
+TMT_TREE_PROVISION=$TMT_TREE_PARENT/provision
+TMT_TREE_DISCOVER="$TMT_TREE_PARENT"/discover
+# TMT_TREE_EXECUTE is used in downstream tests
+# shellcheck disable=SC2034
+TMT_TREE_EXECUTE="$TMT_TREE_PARENT"/execute
+GUESTS_YML=${TMT_TREE_PROVISION}/guests.yaml
+declare -gA ANSIBLE_ENVS
 
 lsrLabBosRepoWorkaround() {
     sed -i 's|\.lab\.bos.|.devel.|g' /etc/yum.repos.d/*.repo
@@ -71,7 +74,7 @@ lsrCloneRepo() {
 
 lsrGetRoleDir() {
     local repo_name=$1
-    if [ "$SR_TEST_LOCAL_CHANGES" == True ]; then
+    if [ "$SR_TEST_LOCAL_CHANGES" == true ]; then
         rlLog "Test from local changes"
         role_path="$TMT_TREE"
     else
@@ -284,95 +287,131 @@ lsrConvertToCollection() {
 }
 
 lsrGetManagedNodes() {
-    local guests_yml=$1
     # xargs to return space-separated string
-    sed --quiet --regexp-extended 's/(^managed.*):$/\1/p' "$guests_yml" | sort | xargs
+    sed --quiet --regexp-extended 's/(^managed.*):$/\1/p' "$GUESTS_YML" | sort | xargs
 }
 
 lsrGetNodes() {
-    local guests_yml=$1
     # xargs to return space-separated string
-    sed --quiet --regexp-extended 's/(^[^ ]*):$/\1/p' "$guests_yml" | sort | xargs
+    sed --quiet --regexp-extended 's/(^[^ ]*):$/\1/p' "$GUESTS_YML" | sort | xargs
 }
 
 lsrGetNodeName() {
-    local guests_yml=$1
-    local node_pat=$2
-    sed --quiet --regexp-extended "s/(^$node_pat.*):$/\1/p" "$guests_yml"
+    local node_pat=$1
+    sed --quiet --regexp-extended "s/(^$node_pat.*):$/\1/p" "$GUESTS_YML"
 }
 
 lsrGetCurrNodeHostname() {
-    local guests_yml=$1
     local ip_addr
     ip_addr=$(hostname -I | awk '{print $1}')
-    grep "primary-address: $ip_addr$" "$guests_yml" -B 10 | sed --quiet --regexp-extended 's/(^[^ ]*):$/\1/p'
+    grep "primary-address: $ip_addr" "$GUESTS_YML" -B 10 | sed --quiet --regexp-extended 's/(^[^ ]*):$/\1/p'
 }
 
 lsrGetNodeIp() {
-    local guests_yml=$1
-    local node=$2
+    local node=$1
     # awk '$1=$1' to remove extra spaces
-    sed --quiet "/^$node:$/,/^[^ ]/p" "$guests_yml"  | sed --quiet --regexp-extended 's/primary-address: (.*)/\1/p' | awk '$1=$1'
+    sed --quiet "/^$node:$/,/^[^ ]/p" "$GUESTS_YML" | sed --quiet --regexp-extended 's/primary-address: (.*)/\1/p' | awk '$1=$1'
 }
 
 lsrGetNodeOs() {
-    local guests_yml=$1
-    local node=$2
-    sed --quiet "/^$node:$/,/^[^ ]/p" "$guests_yml" | sed --quiet --regexp-extended 's/distro: (.*)/\1/p' | awk '$1=$1'
+    local node=$1
+    sed --quiet "/^$node:$/,/^[^ ]/p" "$GUESTS_YML" | sed --quiet --regexp-extended 's/distro: (.*)/\1/p' | awk '$1=$1'
 }
 
 lsrGetNodeKeyPrivate() {
-    local guests_yml=$1
-    local node=$2
-    # Key is a list containing SSH keys, the first key is private
-    sed --quiet "/^$node:$/,/^[^ ]/p" "$guests_yml"  | grep 'key:' -A1 | tail -n1 | grep -o '/.*'
+    local node=$1
+    # Key is a list containing SSH keys, the first key is private RSA
+    sed --quiet "/^$node:$/,/^[^ ]/p" "$GUESTS_YML" | grep 'key:' -A1 | tail -n1 | grep -o '/.*'
 }
 
 lsrGetNodeKeyPublic() {
-    local guests_yml=$1
-    local node=$2
+    local node=$1
     # Append .pub to the private key
-    lsrGetNodeKeyPrivate "$guests_yml" "$node" | awk '{print $1".pub"}'
+    lsrGetNodeKeyPrivate "$node" | awk '{print $1".pub"}'
 }
 
-lsrPrepareInventoryVars() {
-    local tmt_tree_provision=$1
-    local guests_yml=$2
+lsrGenerateAnsibleSSHKey() {
+    # crypto_policies/tests_reboot.yml changes crypto policy to FUTURE and does a reboot.
+    # FUTURE crypto_policy doesn't allow shorter RSA keys that TF uses by default.
+    # Because of this, for use with Ansible, test generates a separate ecdsa key.
+    # https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/8/html/security_hardening/using-the-system-wide-cryptographic-policies_security-hardening#system-wide-crypto-policies_using-the-system-wide-cryptographic-policies
+    # Note that for other operations e.g. lsrExecuteOnNode tests use the key provided by TF.
+    local key_glob key_f
+    key_glob="/var/tmp/sr_ecdsa_*"
+    if compgen -G "$key_glob" > /dev/null; then
+        find /var/tmp -wholename "$key_glob" -not -name "*.pub"
+    else
+        key_f=$(mktemp -u /var/tmp/sr_ecdsa_XXX)
+        ssh-keygen -t ecdsa -b 256 -f "$key_f" -N "" -q
+        echo "$key_f"
+    fi
+}
+
+lsrGetAnsibleKeyPublic() {
+    local control_node_key
+    control_node_key=$(lsrGenerateAnsibleSSHKey)
+    echo "$control_node_key".pub
+}
+
+lsrPrepareGlobalInventory() {
+    # Prepare inventory file containing all managed nodes
     local inventory is_virtual  managed_nodes
     inventory=$(mktemp -t inventory-XXX.yml)
     # TMT_TOPOLOGY_ variables are not available in tmt try.
     # Reading topology from guests.yml for compatibility with tmt try
-    is_virtual=$(lsrIsVirtual "$tmt_tree_provision")
-    managed_nodes=$(lsrGetManagedNodes "$guests_yml")
-    control_node_name=$(lsrGetNodeName "$guests_yml" "control-node")
+    is_virtual=$(lsrIsVirtual "$TMT_TREE_PROVISION")
+    managed_nodes=$(lsrGetManagedNodes)
+    control_node_name=$(lsrGetNodeName "control-node")
     echo "---
 all:
   hosts:" > "$inventory"
     for managed_node in $managed_nodes; do
-        ip_addr=$(lsrGetNodeIp "$guests_yml" "$managed_node")
+        ip_addr=$(lsrGetNodeIp "$managed_node")
         {
         echo "    $managed_node:"
         echo "      ansible_host: $ip_addr"
         echo "      ansible_ssh_extra_args: \"-o StrictHostKeyChecking=no\""
         } >> "$inventory"
         if [ "$is_virtual" -eq 0 ]; then
-            echo "      ansible_ssh_private_key_file: ${tmt_tree_provision}/$control_node_name/id_ecdsa" >> "$inventory"
+            echo "      ansible_ssh_private_key_file: ${TMT_TREE_PROVISION}/$control_node_name/id_ecdsa" >> "$inventory"
         fi
     done
     rlRun "echo $inventory"
 }
 
+lsrPrepareNodesInventories() {
+    local inventory managed_nodes ip_addr
+    # TMT_TOPOLOGY_ variables are not available in tmt try.
+    # Reading topology from guests.yml for compatibility with tmt try
+    managed_nodes=$(lsrGetManagedNodes)
+    control_node_key=$(lsrGenerateAnsibleSSHKey)
+    lsrDistributeAnsibleSSHKey "$managed_nodes"
+    for node in $managed_nodes; do
+        inventory=/tmp/inventory_"${node}".yml
+        if [ ! -f "$inventory" ]; then
+            ip_addr=$(lsrGetNodeIp "$node")
+            {
+            echo "---"
+            echo "all:"
+            echo "  hosts:"
+            echo "    $node:"
+            echo "      ansible_host: $ip_addr"
+            echo "      ansible_ssh_extra_args: \"-o StrictHostKeyChecking=no\""
+            echo "      ansible_ssh_private_key_file: $control_node_key"
+            } >> "$inventory"
+        fi
+    done
+}
+
 lsrIsVirtual() {
     # Returns 0 if provisioned with "how: virtual"
-    local tmt_tree_provision=$1
-    grep -q 'how: virtual' "$tmt_tree_provision"/step.yaml
+    grep -q 'how: virtual' "$TMT_TREE_PROVISION"/step.yaml
     echo $?
 }
 
 lsrUploadLogs() {
     local logfile=$1
-    local guests_yml=$2
-    local role_name=$3
+    local role_name=$2
     local id_rsa_path pr_substr os artifact_dirname target_dir
     rlFileSubmit "$logfile"
     if [ -z "$SR_LSR_SSH_KEY" ]; then
@@ -384,8 +423,8 @@ lsrUploadLogs() {
         -e 's| -----END OPENSSH PRIVATE KEY-----|\n-----END OPENSSH PRIVATE KEY-----|' > "$id_rsa_path" # notsecret
     chmod 600 "$id_rsa_path"
     if [ -z "$SR_ARTIFACTS_DIR" ]; then
-        control_node_name=$(lsrGetNodeName "$guests_yml" "control-node")
-        os=$(lsrGetNodeOs "$guests_yml" "$control_node_name")
+        control_node_name=$(lsrGetNodeName "control-node")
+        os=$(lsrGetNodeOs "$control_node_name")
         printf -v date '%(%Y%m%d-%H%M%S)T' -1
         if [ -z "$SR_PR_NUM" ]; then
             pr_substr=_main
@@ -398,8 +437,8 @@ lsrUploadLogs() {
         SR_ARTIFACTS_URL=https://dl.fedoraproject.org/pub/alt/linuxsystemroles/logs/$artifact_dirname/
     fi
     rlRun "ssh -i $id_rsa_path -o StrictHostKeyChecking=no $SR_LSR_USER@$SR_LSR_DOMAIN mkdir -p $SR_ARTIFACTS_DIR"
-    chmod +r "$guests_yml"
-    rlRun "scp -i $id_rsa_path -o StrictHostKeyChecking=no $logfile $guests_yml $SR_LSR_USER@$SR_LSR_DOMAIN:$SR_ARTIFACTS_DIR/"
+    chmod +r "$GUESTS_YML"
+    rlRun "scp -i $id_rsa_path -o StrictHostKeyChecking=no $logfile $GUESTS_YML $SR_LSR_USER@$SR_LSR_DOMAIN:$SR_ARTIFACTS_DIR/"
     rlLogInfo "Logs are uploaded at $SR_ARTIFACTS_URL"
     rlRun "rm $id_rsa_path"
 }
@@ -418,48 +457,130 @@ lsrArrtoStr() {
     echo
 }
 
+lsrGetNodeInventory() {
+    local node="$1"
+    local inventory
+    inventory=/tmp/inventory_${node}.yml
+    if [ -f "$inventory" ]; then
+        echo "$inventory"
+    else
+        rlLogError "Error: No inventory file found for node '${node}'"
+        return 1
+    fi
+}
+
+lsrRunAusearch() {
+    local start_date=$1
+    local start_time=$2
+    local role_name=$3
+    local playbook_basename=$4
+    local node=$5
+    local ausearch_out logfile_name control_node_name
+
+    ausearch_cmd=(/sbin/ausearch --input-logs -sv no -m AVC -m USER_AVC -m SELINUX_ERR --start "$start_date" "$start_time" --end now)
+    if [ -n "$node" ]; then
+        ausearch_out=$(lsrExecuteOnNode "$node" "${ausearch_cmd[*]} 2>/dev/null" "false")
+    else
+        ausearch_out=$("${ausearch_cmd[@]}" 2>/dev/null)
+    fi
+
+    rlLogDebug "lsrRunAusearch ausearch_cmd=${ausearch_cmd[*]}"
+    rlLogDebug "lsrRunAusearch node=$node"
+    rlLogDebug "lsrRunAusearch ausearch_out=$ausearch_out"
+
+    if [ -n "$ausearch_out" ]; then
+        logfile_name=ausearch-"${role_name}"
+        if [ -n "$playbook_basename" ]; then
+            logfile_name+=-"${playbook_basename}"
+        fi
+        if [ -n "$node" ]; then
+            logfile_name+=-"${node}"
+        else
+            control_node_name=$(lsrGetNodeName "control-node")
+            logfile_name+=-"${control_node_name}"
+        fi
+        logfile_name+=-FAIL.log
+        echo "$ausearch_out" > "$logfile_name"
+        rlLogError "$role_name: uploading SELinux denials in $logfile_name"
+        lsrUploadLogs "$logfile_name" "$role_name"
+    fi
+}
+
 lsrRunPlaybook() {
     local test_playbook=$1
     local inventory=$2
     local skip_tags=$3
-    local limit=$4
+    local node=$4
     local LOGFILE=$5
     local verbosity="$6"
     local result=FAIL
-    local cmd log_msg role_name playbook_basename
+    local cmd log_msg role_name playbook_basename playbook_start_date playbook_start_time nodes
     role_name=$(lsrGetRoleNameFromTestPlaybook "$test_playbook")
     playbook_basename=$(basename "$test_playbook")
+
+    # When $inventory is impty, $node is required to find inventory
+    if [ -z "$inventory" ]; then
+        inventory=$(lsrGetNodeInventory "$node")
+    fi
+
+    # When $node is empty, it implies that inventory contains multiple nodes
+    nodes=$(grep -E '^\s{4}[a-zA-Z0-9.-]+:' "$inventory" | \
+        awk -F':' '{print $1}' | \
+        sed -E 's/^\s*|\s*$//g' | \
+        tr '\n' ' ' | \
+        sed 's/ $//')
     if [ "${GET_PYTHON_MODULES:-}" = true ]; then
         ANSIBLE_ENVS[ANSIBLE_DEBUG]=true
     fi
-    cmd="$(lsrArrtoStr ANSIBLE_ENVS) ansible-playbook -i $inventory $skip_tags $limit $test_playbook $verbosity"
-    log_msg="Test $role_name/$playbook_basename with ANSIBLE-$SR_ANSIBLE_VER on ${limit/--limit /}"
+    cmd="$(lsrArrtoStr ANSIBLE_ENVS) ansible-playbook -i $inventory $skip_tags $test_playbook $verbosity"
+    log_msg="$role_name: $playbook_basename with ANSIBLE-$SR_ANSIBLE_VER on $nodes"
+    playbook_start_date=$(date '+%m/%d/%Y')
+    playbook_start_time=$(date '+%H:%M:%S')
+    playbook_start_ts=$(date '+%Y-%m-%d %H:%M:%S')
+
     # If SR_TFT_DEBUG is true, print output to terminal
-    if [ "$SR_TFT_DEBUG" == true ] || [ "$SR_TFT_DEBUG" == True ]; then
+    if [ "$SR_TFT_DEBUG" == true ]; then
         rlRun "ANSIBLE_LOG_PATH=$LOGFILE $cmd && result=SUCCESS" 0 "$log_msg"
     else
         rlRun "$cmd &> $LOGFILE && result=SUCCESS" 0 "$log_msg"
     fi
+    for node_name in $nodes; do
+        lsrRunAusearch "$playbook_start_date" "$playbook_start_time" "$role_name" "$playbook_basename" "$node_name"
+    done
+
     logfile_name=$LOGFILE-$result.log
     mv "$LOGFILE" "$logfile_name"
     LOGFILE=$logfile_name
-    lsrUploadLogs "$LOGFILE" "$guests_yml" "$role_name"
+    if [ "$role_name" = podman ]; then
+        if grep "${ANSIBLE_ENVS[SYSTEM_ROLES_PODMAN_PASSWORD]}" "$LOGFILE"; then
+            rlLogError "podman password found in log files"
+        fi
+    fi
+    if [ "$result" = FAIL ]; then
+        # collect journald output from failed machine
+        for node_name in $nodes; do
+            lsrExecuteOnNode "$node_name" "journalctl --since '$playbook_start_ts' -ex 2>/dev/null" "false" >> "$LOGFILE"
+        done
+    fi
+
+    lsrUploadLogs "$LOGFILE" "$role_name"
     if [ "${GET_PYTHON_MODULES:-}" = true ]; then
-        cmd="$(lsrArrtoStr ANSIBLE_ENVS) ansible-playbook -i $inventory $skip_tags $limit process_python_modules_packages.yml -vv"
+        cmd="$(lsrArrtoStr ANSIBLE_ENVS) ansible-playbook -i $inventory $skip_tags process_python_modules_packages.yml -vv"
         local packages="$LOGFILE.packages"
         rlRun "$cmd -e packages_file=$packages -e logfile=$LOGFILE &> $LOGFILE.modules" 0 "process python modules"
-        lsrUploadLogs "$LOGFILE.modules" "$guests_yml" "$role_name"
-        lsrUploadLogs "$packages" "$guests_yml" "$role_name"
+        lsrUploadLogs "$LOGFILE.modules" "$role_name"
+        lsrUploadLogs "$packages" "$role_name"
     fi
 }
 
 lsrGetRoleNameFromTestsPath() {
     local tests_path=$1
-    local test_dir role_dir_abs
+    local test_dir role_dir_abs legacy_name
     test_dir=$(basename "$tests_path")
     if [ "$test_dir" = tests ]; then # legacy role format
         role_dir_abs=$(dirname "$tests_path")
-        basename "$role_dir_abs"
+        legacy_name=$(basename "$role_dir_abs")
+        echo "$legacy_name" | cut -d'.' -f2
     else # collection format
         echo "$test_dir"
     fi
@@ -475,28 +596,35 @@ lsrGetRoleNameFromTestPlaybook() {
 lsrRunPlaybooksParallel() {
     # Run playbooks on managed nodes one by one
     # Supports running against a single node too
-    local inventory=$1
-    local skip_tags=$2
-    local test_playbooks=$3
-    local managed_nodes=$4
-    local rolename_in_logfile=$5
-    local verbosity="$6"
-    local role_name test_playbooks_arr
+    local skip_tags=$1
+    local test_playbooks=$2
+    local managed_nodes=$3
+    local rolename_in_logfile=$4
+    local verbosity=$5
+    local role_name test_playbooks_arr inventory
 
     read -ra test_playbooks_arr <<< "$test_playbooks"
+    while_test_pbs_arr_c=0
     while [ "${#test_playbooks_arr[*]}" -gt 0 ]; do
+        ((while_test_pbs_arr_c++))
+        if (( while_test_pbs_arr_c % 360 == 0 )); then
+            rlLogInfo "In the loop 'while [ \${#test_playbooks_arr[*]}' ... iteration $while_test_pbs_arr_c"
+            rlLogInfo "{#test_playbooks_arr[*]}: ${#test_playbooks_arr[*]}"
+            rlLogInfo "{test_playbooks_arr[*]}: ${test_playbooks_arr[*]}"
+        fi
         for managed_node in $managed_nodes; do
-            if ! pgrep -af "ansible-playbook" | grep -q "\--limit $managed_node\s"; then
+            inventory=$(lsrGetNodeInventory "$managed_node")
+            if ! pgrep -af "ansible-playbook" | grep -q " -i $inventory "; then
                 test_playbook=${test_playbooks_arr[0]}
                 test_playbooks_arr=("${test_playbooks_arr[@]:1}") # Remove first element from array
                 playbook_basename=$(basename "$test_playbook")
-                if [ "$rolename_in_logfile" == true ] || [ "$rolename_in_logfile" == True ]; then
+                if [ "$rolename_in_logfile" == true ]; then
                     role_name=$(lsrGetRoleNameFromTestPlaybook "$test_playbook")
-                    LOGFILE="$role_name"-"${playbook_basename%.*}"-ANSIBLE-"$SR_ANSIBLE_VER"-$tmt_plan
+                    LOGFILE="$role_name"-"${playbook_basename%.*}"-ANSIBLE-"$SR_ANSIBLE_VER"-$TMT_PLAN
                 else
-                    LOGFILE="${playbook_basename%.*}"-ANSIBLE-"$SR_ANSIBLE_VER"-$tmt_plan
+                    LOGFILE="${playbook_basename%.*}"-ANSIBLE-"$SR_ANSIBLE_VER"-$TMT_PLAN
                 fi
-                lsrRunPlaybook "$test_playbook" "$inventory" "$skip_tags" "--limit $managed_node" "$LOGFILE" "$verbosity" &
+                lsrRunPlaybook "$test_playbook" "" "$skip_tags" "$managed_node" "$LOGFILE" "$verbosity" &
                 sleep 1
                 break
             fi
@@ -504,9 +632,16 @@ lsrRunPlaybooksParallel() {
         sleep 1
     done
     # Wait for the last test to finish
+    while_playbook_ps_c=0
     while true; do
+        ((while_playbook_ps_c++))
         if ! pgrep -af "ansible-playbook" | grep -q "$tests_path"; then
             break
+        fi
+        if (( while_playbook_ps_c % 1800 == 0 )); then
+            rlLogInfo "In the loop 'while true' ... iteration $while_playbook_ps_c"
+            rlLogInfo "$(pgrep -af "ansible-playbook" | grep "$tests_path")"
+            rlLogInfo "{test_playbooks_arr[*]}: ${test_playbooks_arr[*]}"
         fi
         sleep 1
     done
@@ -515,27 +650,40 @@ lsrRunPlaybooksParallel() {
 }
 
 lsrDistributeSSHKeys() {
-    local tmt_tree_provision=$1
     local control_node_key_pub control_node_name
-    control_node_name=$(lsrGetNodeName "$guests_yml" "control-node")
-    control_node_key_pub=$(lsrGetNodeKeyPublic "$guests_yml" "$control_node_name")
+    control_node_name=$(lsrGetNodeName "control-node")
+    control_node_key_pub=$(lsrGetNodeKeyPublic "$control_node_name")
     control_node_key_pub_content=$(cat "$control_node_key_pub")
     if [ -f "$control_node_key_pub" ] && ! grep "$control_node_key_pub_content" ~/.ssh/authorized_keys; then
         rlRun "cat $control_node_key_pub >> ~/.ssh/authorized_keys"
     fi
 }
 
+lsrDistributeAnsibleSSHKey() {
+    local managed_nodes=$1
+    local control_node_key_pub managed_nodes
+    managed_nodes=$(lsrGetManagedNodes)
+    control_node_key_pub=$(lsrGetAnsibleKeyPublic)
+    if [ -z "$control_node_key_pub" ]; then
+        rlLogError "control_node_key_pub is empty"
+    fi
+    for managed_node in $managed_nodes; do
+        lsrCopyToNode "$managed_node" "$control_node_key_pub" "/var/tmp/" "true"
+        lsrExecuteOnNode "$managed_node" \
+            "cat $control_node_key_pub | tee --append ~/.ssh/authorized_keys" \
+            "true"
+    done
+}
+
 lsrSetHostname() {
-    local guests_yml=$1
-    hostname=$(lsrGetCurrNodeHostname "$guests_yml")
+    hostname=$(lsrGetCurrNodeHostname)
     rlRun "hostnamectl set-hostname $hostname"
 }
 
 lsrBuildEtcHosts() {
-    local guests_yml=$1
-    managed_nodes=$(lsrGetManagedNodes "$guests_yml")
+    managed_nodes=$(lsrGetManagedNodes)
     for managed_node in $managed_nodes; do
-        managed_node_ip=$(lsrGetNodeIp "$guests_yml" "$managed_node")
+        managed_node_ip=$(lsrGetNodeIp "$managed_node")
         if ! grep -q "$managed_node_ip $managed_node" /etc/hosts; then
             rlRun "echo $managed_node_ip $managed_node >> /etc/hosts"
         fi
@@ -579,15 +727,13 @@ lsrDiskProvisionerRequired() {
 }
 
 lsrGetIdentityFile() {
-    guests_yml=$1
-    tmt_tree_provision=$2
-    local is_virtual control_node_name control_node_key
+    local node=$1
+    local is_virtual node_key
 
-    is_virtual=$(lsrIsVirtual "$tmt_tree_provision")
+    is_virtual=$(lsrIsVirtual)
     if [ "$is_virtual" -eq 0 ]; then
-        control_node_name=$(lsrGetNodeName "$guests_yml" "control-node")
-        control_node_key=$(lsrGetNodeKeyPrivate "$guests_yml" "$control_node_name")
-        echo "-i $control_node_key"
+        node_key=$(lsrGetNodeKeyPrivate "$node")
+        echo "-i $node_key"
     fi
 }
 
@@ -595,17 +741,20 @@ lsrCopyToNode() {
     local node=$1
     local cp_files=$2
     local dest_path=$3
-    local guests_yml=$4
-    local tmt_tree_provision=$5
-    local print_out=$6
-    local identity_file_args node_ip scp_cmd
-    identity_file_args=$(lsrGetIdentityFile "$guests_yml" "$tmt_tree_provision")
-    node_ip=$(lsrGetNodeIp "$guests_yml" "$node")
+    local forward_to_log=$4
+    local identity_file_args node_ip scp_cmd logfile
+    logfile="$node"_tf.log
+    identity_file_args=$(lsrGetIdentityFile "$node")
+    node_ip=$(lsrGetNodeIp "$node")
     # Passing some variables without quotes to avoid shell considering them a single argument
     # shellcheck disable=SC2206
     scp_cmd=(scp $identity_file_args -o StrictHostKeyChecking=no $cp_files root@"$node_ip":"$dest_path")
-    if [ "$print_out" == false ]; then
-        "${scp_cmd[@]}" > /dev/null 2>&1
+    if [ "$forward_to_log" == true ]; then
+        {
+            echo "\$ ${scp_cmd[*]}"
+            "${scp_cmd[@]}"
+            echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+        } &>> "$logfile"
     else
         "${scp_cmd[@]}"
     fi
@@ -614,17 +763,20 @@ lsrCopyToNode() {
 lsrExecuteOnNode() {
     local node=$1
     local cmd=$2
-    local guests_yml=$3
-    local tmt_tree_provision=$4
-    local print_out=$5
-    local identity_file_args node_ip ssh_cmd
-    identity_file_args=$(lsrGetIdentityFile "$guests_yml" "$tmt_tree_provision")
-    node_ip=$(lsrGetNodeIp "$guests_yml" "$node")
+    local forward_to_log=$3
+    local identity_file_args node_ip ssh_cmd logfile
+    logfile="$node"_tf.log
+    identity_file_args=$(lsrGetIdentityFile "$node")
+    node_ip=$(lsrGetNodeIp "$node")
     # Passing identity_file_args without quotes to avoid shell considering it a single argument
     # shellcheck disable=SC2206
     ssh_cmd=(ssh $identity_file_args -o StrictHostKeyChecking=no root@"$node_ip" "$cmd")
-    if [ "$print_out" == false ]; then
-        "${ssh_cmd[@]}" > /dev/null 2>&1
+    if [ "$forward_to_log" == true ]; then
+        {
+            echo "\$ ${ssh_cmd[*]}"
+            "${ssh_cmd[@]}"
+            echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+        } &>> "$logfile"
     else
         "${ssh_cmd[@]}"
     fi
@@ -634,8 +786,11 @@ lsrGenerateTestDisks() {
     local tests_path=$1
     local action=$2
     local disk_provisioner_script=$3
+    local managed_node=$4
     local provisionfmf="$tests_path"/provision.fmf
-    local disk_provisioner_dir
+    local disk_provisioner_dir disk_provisioner_basename disk_provisioner_tmp
+    disk_provisioner_basename=$(basename "$disk_provisioner_script")
+    disk_provisioner_tmp=/tmp/$disk_provisioner_basename
     if ! lsrDiskProvisionerRequired "$tests_path"; then
         return 0
     fi
@@ -643,27 +798,25 @@ lsrGenerateTestDisks() {
         rlDie "With lsrGenerateTestDisks, action must be either start or stop. Provided action: $action"
     fi
 
-    managed_nodes=$(lsrGetManagedNodes "$guests_yml")
-    for managed_node in $managed_nodes; do
-        available=$(lsrExecuteOnNode "$managed_node" "df -k /tmp --output=avail | tail -1" "$guests_yml" "$tmt_tree_provision" "true")
-        # rlLog "Available disk space: $available"
-        if [ "$available" -gt 10485760 ]; then
-            disk_provisioner_dir=/tmp/disk_provisioner
-        else
-            disk_provisioner_dir=/var/tmp/disk_provisioner
-        fi
-        lsrCopyToNode "$managed_node" "$disk_provisioner_script $provisionfmf" "/tmp/" "$guests_yml" \
-            "$tmt_tree_provision" "false"
-        lsrExecuteOnNode "$managed_node" \
-            "chmod +x /tmp/$disk_provisioner_script" \
-            "$guests_yml" "$tmt_tree_provision" "false"
-        lsrExecuteOnNode "$managed_node" \
-            "WORK_DIR=$disk_provisioner_dir FMF_DIR=/tmp/ /tmp/$disk_provisioner_script $action" \
-            "$guests_yml" "$tmt_tree_provision" "false"
-        # Print devices
-        lsrExecuteOnNode "$managed_node" "echo $managed_node ; fdisk -l | grep 'Disk /dev/' ; lsblk -l | cut -d\  -f1 | grep -v NAME | sed 's/^/\/dev\//' | xargs ls -l" \
-            "$guests_yml" "$tmt_tree_provision" "true"
-    done
+    available=$(lsrExecuteOnNode "$managed_node" "df -k /tmp --output=avail | tail -1" "false")
+    # rlLog "Available disk space: $available"
+    if [ "$available" -gt 10485760 ]; then
+        disk_provisioner_dir=/tmp/disk_provisioner
+    else
+        disk_provisioner_dir=/var/tmp/disk_provisioner
+    fi
+    lsrCopyToNode "$managed_node" "$disk_provisioner_script $provisionfmf" "/tmp/" \
+        "true"
+    lsrExecuteOnNode "$managed_node" \
+        "chmod +x $disk_provisioner_tmp" \
+        "true"
+    lsrExecuteOnNode "$managed_node" \
+        "WORK_DIR=$disk_provisioner_dir FMF_DIR=/tmp/ $disk_provisioner_tmp $action" \
+        "true"
+    # Print devices
+    lsrExecuteOnNode "$managed_node" \
+        "echo $managed_node ; fdisk -l | grep 'Disk /dev/' ; lsblk -l | cut -d\  -f1 | grep -v NAME | sed 's/^/\/dev\//' | xargs ls -l" \
+        "true"
 }
 
 lsrAppendHostVarsToInventory() {
@@ -709,6 +862,28 @@ lsrSetAnsibleGathering() {
     ANSIBLE_ENVS[ANSIBLE_GATHERING]="$value"
 }
 
+lsrSubmitManagedNodesLogs() {
+    managed_nodes=$(lsrGetManagedNodes)
+    for node in $managed_nodes; do
+        rlFileSubmit "${node}_tf.log"
+    done
+}
+
+lsrReserveSystems() {
+    local reserve_systems=$1
+    local control_node_ip_addr tf_run_id
+    if [ "$reserve_systems" = true ]; then
+        control_node_ip_addr=$(hostname -I | awk '{print $1}')
+        tf_run_id=$(grep -Po 'TESTING_FARM_REQUEST_ID: \K.*' "$TMT_TREE_DISCOVER"/tests.yaml)
+        rlLogInfo "SR_RESERVE_SYSTEMS=true, 'sleep 36660' to sleep 10 hours to keep machines for troubleshooting"
+        rlLogInfo "You can continue the request by killing the sleep process with this cmd:"
+        rlLogInfo "$ ssh -i /usr/share/qa-tools/1minutetip/1minutetip root@$control_node_ip_addr \"pkill -f 'sleep 36660' || echo ERROR\""
+        rlLogInfo "Or you can cancel the request with the this cmd:"
+        rlLogInfo "TESTING_FARM_API_TOKEN=\"\$tftoken\" testing-farm cancel https://api.dev.testing-farm.io/v0.1/requests/$tf_run_id"
+        sleep 36660
+    fi
+}
+
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #   Verification
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -720,7 +895,7 @@ lsrSetAnsibleGathering() {
 #   should return 0 only when the library is ready to serve.
 #
 #   This library does not do anything, it is only a list of functions, so simply returning 0
-libraryLibraryLoaded() {
+rolesUpstreamLibraryLoaded() {
     rlLog "Library loaded!"
     return 0
 }

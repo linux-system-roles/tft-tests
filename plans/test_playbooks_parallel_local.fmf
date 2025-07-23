@@ -1,5 +1,6 @@
-summary: A general test for a system role
-tag: mssql
+# Example cmd: tmt try -p /plans/test_playbooks_parallel_local centos-stream-9
+summary: A plan for running locally with tmt
+tag: playbooks_parallel_local
 provision:
   - name: control-node1
     role: control_node
@@ -7,34 +8,21 @@ provision:
     # `connection: system` is for `how: virtual` to make VMs get a real IP to configure ssh easily
     # This setting is ignored on artemis so we can keep it
     connection: system
-    # Provision all machines in the same AWS pool to ensure that they are in the same subnet
   - name: managed-node1
     role: managed_node
     connection: system
     hardware:
+      # Second network interface for the network role
+      network:
+        - type: eth
+        - type: eth
+      # 4GB memory for the mssql role
       memory: ">= 4096 MB"
-    pool: aws-testing-farm-09
-  - name: managed-node2
-    role: managed_node
-    connection: system
-    hardware:
-      memory: ">= 4096 MB"
-    pool: aws-testing-farm-09
-  - name: managed-node3
-    role: managed_node
-    connection: system
-    hardware:
-      memory: ">= 4096 MB"
-    pool: aws-testing-farm-09
-  - name: virtualip-node1
-    role: virtualip
-    connection: system
-    pool: aws-testing-farm-09
 environment:
     SR_ANSIBLE_VER: 2.17
+    SR_REPO_NAME: ""
     SR_PYTHON_VERSION: 3.12
-    SR_REPO_NAME: mssql
-    SR_ONLY_TESTS: "tests_configure_ha_cluster_external.yml tests_configure_ha_cluster_read_scale.yml tests_configure_ha_cluster_external_read_only.yml"
+    SR_ONLY_TESTS: ""
     SR_TEST_LOCAL_CHANGES: false
     SR_PR_NUM: ""
     SR_LSR_USER: ""
@@ -59,13 +47,32 @@ prepare:
     how: feature
     epel: enabled
 discover:
-  - name: Prepare managed nodes
+  - name: Prepare managed node
     how: fmf
     where: managed_node
     filter: tag:prep_managed_node
   - name: Run test playbooks from control_node
     how: fmf
     where: control_node
-    filter: tag:mssql_ha
+    filter: tag:test_playbooks
 execute:
     how: tmt
+# HACK: Using size-n because >< operators work like version comparison - they
+# expect a package-like format and do not work with just integer numbers.
+# adjust in plans doesn't work for context defined within the plan.
+# Therefore to define the "size" context from outside:
+# For tmt, with `tmt -c size=size-n try`
+# For testing-farm, with `testing-farm request -c size=size-n`
+adjust:
+  - when: size >= size-2
+    provision+:
+      - name: managed-node02
+        role: managed_node
+        how: artemis
+        image: ${COMPOSE_MANAGED_NODE}
+        arch: ${ARCH_MANAGED_NODE}
+        hardware:
+          network:
+            - type: eth
+            - type: eth
+          memory: ">= 4096 MB"
