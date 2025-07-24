@@ -15,6 +15,10 @@
 #   Optional: When true, tests from local changes. When false, test from a repository PR number (when SR_PR_NUM is set) or main branch.
 [ -n "$TEST_LOCAL_CHANGES" ] && export SR_TEST_LOCAL_CHANGES="$TEST_LOCAL_CHANGES"
 SR_TEST_LOCAL_CHANGES="${SR_TEST_LOCAL_CHANGES:-false}"
+#   TMT sets True, False with capital letters, need to reset it to bash style
+[ "$TEST_LOCAL_CHANGES" = True ] && export TEST_LOCAL_CHANGES=true
+[ "$TEST_LOCAL_CHANGES" = False ] && export TEST_LOCAL_CHANGES=false
+
 #
 # SR_PR_NUM
 #   Optional: Number of PR to test. If empty, tests the default branch.
@@ -61,6 +65,10 @@ SR_SKIP_TAGS="--skip-tags tests::nvme,tests::infiniband,tests::bootc-e2e"
 # SR_TFT_DEBUG
 #   Print output of ansible playbooks to terminal in addition to printing it to logfile
 [ -n "$LSR_TFT_DEBUG" ] && export SR_TFT_DEBUG="$LSR_TFT_DEBUG"
+#   TMT sets True, False with capital letters, need to reset it to bash style
+[ "$LSR_TFT_DEBUG" = True ] && export LSR_TFT_DEBUG=true
+[ "$LSR_TFT_DEBUG" = False ] && export LSR_TFT_DEBUG=false
+
 if [ "$(echo "$SR_ONLY_TESTS" | wc -w)" -eq 1 ]; then
     SR_TFT_DEBUG=true
 else
@@ -83,12 +91,30 @@ SR_ANSIBLE_VERBOSITY="${SR_ANSIBLE_VERBOSITY:--vv}"
 #   Default is https://raw.githubusercontent.com/linux-system-roles/auto-maintenance/main/callback_plugins/lsr_report_errors.py
 #   This is used to embed an error report in the output log
 SR_REPORT_ERRORS_URL="${SR_REPORT_ERRORS_URL:-https://raw.githubusercontent.com/linux-system-roles/auto-maintenance/main/callback_plugins/lsr_report_errors.py}"
+#
+# SR_RESERVE_SYSTEMS
+#   Set to true to sleep for 10h after test finishes for troubleshooting purposes
+#   You can find IPs of systems from artifacts by looking into workdir/plans/test_playbooks_parallel/provision/guests.yaml
+#   It's best to cancel requests after you finish with `testing-farm cancel`
+SR_RESERVE_SYSTEMS="${SR_RESERVE_SYSTEMS:-false}"
+#   TMT sets True, False with capital letters, need to reset it to bash style
+[ "$SR_RESERVE_SYSTEMS" = True ] && export SR_RESERVE_SYSTEMS=true
+[ "$SR_RESERVE_SYSTEMS" = False ] && export SR_RESERVE_SYSTEMS=false
+
+echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+echo "~~~ Environment Variables Definition - BEGIN"
+echo "ARCH_CONTROLLER=${ARCH_CONTROLLER}"
+echo "ARCH_MANAGED_NODE=${ARCH_MANAGED_NODE}"
+echo "COMPOSE_CONTROLLER=${COMPOSE_CONTROLLER}"
+echo "COMPOSE_MANAGED_NODE=${COMPOSE_MANAGED_NODE}"
+env | grep -E '^SR_'
+echo "~~~ Environment Variables Definition - END"
 
 rlJournalStart
     rlPhaseStartSetup
-        rlRun "rlImport library"
+        rlRun "rlImport upstream_library"
         lsrLabBosRepoWorkaround
-        lsrPrepTestVars
+
         for required_var in "${SR_REQUIRED_VARS[@]}"; do
             if [ -z "${!required_var}" ]; then
                 rlDie "This required variable is unset: $required_var "
@@ -103,7 +129,6 @@ rlJournalStart
         # role_path is defined in lsrGetRoleDir
         # shellcheck disable=SC2154
         legacy_test_path="$role_path"/tests
-        lsrGenerateTestDisks "$legacy_test_path" start disk_provisioner.sh
         test_playbooks=$(lsrGetTests "$legacy_test_path")
         rlLogInfo "Test playbooks: $test_playbooks"
         if lsrVaultRequired "$legacy_test_path"; then
@@ -113,24 +138,27 @@ rlJournalStart
         fi
         lsrSetAnsibleGathering "$SR_ANSIBLE_GATHERING"
         lsrGetCollectionPath
-        # collection_path and guests_yml is defined in lsrGetCollectionPath
+        # collection_path is defined in lsrGetCollectionPath
         # shellcheck disable=SC2154
         lsrInstallDependencies "$role_path" "$collection_path"
         lsrEnableCallbackPlugins "$collection_path"
         lsrConvertToCollection "$role_path" "$collection_path" "$SR_REPO_NAME"
-        # tmt_tree_provision and guests_yml is defined in lsrPrepTestVars
-        # shellcheck disable=SC2154
-        inventory=$(lsrPrepareInventoryVars "$tmt_tree_provision" "$guests_yml")
-        rlRun "cat $inventory"
+        lsrPrepareNodesInventories
         tests_path="$collection_path"/ansible_collections/fedora/linux_system_roles/tests/"$SR_REPO_NAME"/
         test_playbooks=$(lsrGetTests "$tests_path")
         if [ "${GET_PYTHON_MODULES:-}" = true ]; then
             # shellcheck disable=SC2086
             lsrSetupGetPythonModules "$test_playbooks"
         fi
+
+        managed_nodes=$(lsrGetManagedNodes)
+        for managed_node in $managed_nodes; do
+            lsrGenerateTestDisks "$tests_path" start disk_provisioner.sh "$managed_node"
+        done
     rlPhaseEnd
     rlPhaseStartTest
-        managed_nodes=$(lsrGetManagedNodes "$guests_yml")
-        lsrRunPlaybooksParallel "$inventory" "$SR_SKIP_TAGS" "$test_playbooks" "$managed_nodes" "false" "$SR_ANSIBLE_VERBOSITY"
+        lsrRunPlaybooksParallel "$SR_SKIP_TAGS" "$test_playbooks" "$managed_nodes" "false" "$SR_ANSIBLE_VERBOSITY"
+        lsrSubmitManagedNodesLogs
+        lsrReserveSystems "$SR_RESERVE_SYSTEMS"
     rlPhaseEnd
 rlJournalEnd
