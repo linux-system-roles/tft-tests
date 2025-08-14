@@ -304,7 +304,7 @@ lsrGetNodeName() {
 lsrGetCurrNodeHostname() {
     local ip_addr
     ip_addr=$(hostname -I | awk '{print $1}')
-    grep "primary-address: $ip_addr" "$GUESTS_YML" -B 10 | sed --quiet --regexp-extended 's/(^[^ ]*):$/\1/p'
+    grep "primary-address: $ip_addr$" "$GUESTS_YML" -B 10 | sed --quiet --regexp-extended 's/(^[^ ]*):$/\1/p'
 }
 
 lsrGetNodeIp() {
