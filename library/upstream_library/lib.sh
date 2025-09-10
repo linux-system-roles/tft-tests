@@ -52,6 +52,15 @@ lsrInstallAnsible() {
         rlRun "python$SR_PYTHON_VERSION -m pip install 'ansible==$SR_ANSIBLE_VER.*' selinux passlib rpm"
     else
         # el7
+        # if centos-release-ansible-29 is not installed, and this is a centos 7 system, install it first
+        if rlIsCentOS 7 && [ "$SR_ANSIBLE_VER" = 2.9 ] && ! yum list installed centos-release-ansible-29 > /dev/null 2>&1; then
+            # This is required to get ansible-2.9 on CentOS-7
+            rlRun "yum install centos-release-ansible-29 -y"
+            # Use vault repos
+            set -x
+            sed -i '/^mirror/d;s/#\(baseurl=http:\/\/\)mirror/\1vault/' /etc/yum.repos.d/*.repo
+            set +x
+        fi
         rlRun "yum install python$SR_PYTHON_VERSION-pip 'ansible-$SR_ANSIBLE_VER.*' -y"
     fi
 }
