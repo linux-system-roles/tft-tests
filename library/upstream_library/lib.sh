@@ -21,7 +21,7 @@ GUESTS_YML=${TMT_TREE_PROVISION}/guests.yaml
 declare -gA ANSIBLE_ENVS
 
 lsrLabBosRepoWorkaround() {
-    sed -i 's|\.lab\.bos.|.devel.|g' /etc/yum.repos.d/*.repo
+    sed -i -e 's|\.lab\.bos\.|.devel.|g' -e 's|\.eng\.bos\.|.devel.|g' /etc/yum.repos.d/*.repo
 }
 
 lsrInstallAnsible() {
