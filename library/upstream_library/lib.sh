@@ -871,6 +871,16 @@ lsrSetAnsibleGathering() {
     ANSIBLE_ENVS[ANSIBLE_GATHERING]="$value"
 }
 
+lsrSetAnsibleInjectFactVars() {
+    local value=$1
+    if [ "$value" != true ] && [ "$value" != false ]; then
+        rlLogError "Value for SR_ANSIBLE_INJECT_FACT_VARS must be one of true, false"
+        rlLogError "Provided value: $value"
+        return 1
+    fi
+    ANSIBLE_ENVS[ANSIBLE_INJECT_FACT_VARS]="$value"
+}
+
 lsrSubmitManagedNodesLogs() {
     managed_nodes=$(lsrGetManagedNodes)
     for node in $managed_nodes; do
