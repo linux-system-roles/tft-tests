@@ -515,6 +515,31 @@ lsrRunAusearch() {
     fi
 }
 
+lsrCollectDebugInfo() {
+    local node="$1" playbook_start_ts="$2" role_name="$3"
+    if [ -n "$node" ]; then
+        lsrExecuteOnNode "$node" "journalctl --since '$playbook_start_ts' -ex 2>/dev/null" "true"
+        if [ "$role_name" = ha_cluster ]; then
+            echo "Collecting pcsd logs for ha_cluster role"
+            lsrExecuteOnNode "$node" "cat /var/log/pcsd/*.log" "true"
+        fi
+        if [ "$role_name" = snapshot ] || [ "$role_name" = storage ]; then
+            echo "Collecting logs for $role_name role"
+            lsrExecuteOnNode "$node" "cat /tmp/blivet*.log" "true"
+        fi
+    else
+        journalctl --since "$playbook_start_ts" -ex 2>/dev/null
+        if [ "$role_name" = ha_cluster ]; then
+            echo "Collecting pcsd logs for ha_cluster role"
+            cat /var/log/pcsd/*.log
+        fi
+        if [ "$role_name" = snapshot ] || [ "$role_name" = storage ]; then
+            echo "Collecting logs for $role_name role"
+            cat /tmp/blivet*.log
+        fi
+    fi
+}
+
 lsrRunPlaybook() {
     local test_playbook=$1
     local inventory=$2
@@ -542,6 +567,9 @@ lsrRunPlaybook() {
         ANSIBLE_ENVS[ANSIBLE_DEBUG]=true
     fi
     cmd="$(lsrArrtoStr ANSIBLE_ENVS) ansible-playbook -i $inventory $skip_tags $test_playbook $verbosity"
+    rlLogInfo "Running command: $cmd"
+    rlLogInfo "BEAKERLIB: ${BEAKERLIB:-NOT_FOUND}"
+    rlLogInfo "TESTING_FARM_GIT_URL: ${TESTING_FARM_GIT_URL:-NOT_FOUND}"
     log_msg="$role_name: $playbook_basename with ANSIBLE-$SR_ANSIBLE_VER on $nodes"
     playbook_start_date=$(date '+%m/%d/%Y')
     playbook_start_time=$(date '+%H:%M:%S')
@@ -566,10 +594,7 @@ lsrRunPlaybook() {
         fi
     fi
     if [ "$result" = FAIL ]; then
-        # collect journald output from failed machine
-        for node_name in $nodes; do
-            lsrExecuteOnNode "$node_name" "journalctl --since '$playbook_start_ts' -ex 2>/dev/null" "false" >> "$LOGFILE"
-        done
+        lsrCollectDebugInfo "$node" "$playbook_start_ts" "$role_name" >> "$LOGFILE"
     fi
 
     lsrUploadLogs "$LOGFILE" "$role_name"
