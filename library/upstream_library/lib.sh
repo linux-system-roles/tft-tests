@@ -45,7 +45,7 @@ lsrInstallAnsible() {
         # install ansible dependencies first so that we do not install pre-release versions of them
         rlRun "python$SR_PYTHON_VERSION -m pip install passlib"
         # install possible pre-release version of ansible-core
-        rlRun "python$SR_PYTHON_VERSION -m pip install --pre 'ansible-core==$SR_ANSIBLE_VER.*'"
+        rlRun "python$SR_PYTHON_VERSION -m pip install $SR_ANSIBLE_VER_PRE_RELEASE 'ansible-core==$SR_ANSIBLE_VER.*'"
     elif rlIsRHELLike 8; then
         # el8 ansible-2.9
         rlRun "dnf install python$SR_PYTHON_VERSION -y"
