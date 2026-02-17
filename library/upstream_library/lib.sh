@@ -26,7 +26,9 @@ lsrLabBosRepoWorkaround() {
 
 lsrInstallAnsible() {
     # Hardcode to the only supported version on later ELs
-    if rlIsFedora '>=41'; then
+    if rlIsFedora '>=43'; then
+        SR_PYTHON_VERSION=3.14
+    elif rlIsFedora '>=41'; then
         SR_PYTHON_VERSION=3.13
     elif rlIsRHELLike 8 && [ "$SR_ANSIBLE_VER" == "2.9" ]; then
         SR_PYTHON_VERSION=3.9
