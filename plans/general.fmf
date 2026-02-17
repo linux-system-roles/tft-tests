@@ -29,6 +29,7 @@ environment:
     SR_ARTIFACTS_DIR: ""
     SR_ARTIFACTS_URL: ""
     SR_TFT_DEBUG: false
+    SR_ANSIBLE_VER_PRE_RELEASE: ""  # set to "--pre" to use a pre-release version of Ansible
 prepare:
   - name: Use vault.centos.org repos (CS 7, 8 EOL workaround)
     # Providing order to run prep tasks as first because beakerlib is required
