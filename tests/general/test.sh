@@ -108,6 +108,10 @@ SR_ANSIBLE_INJECT_FACT_VARS="${SR_ANSIBLE_INJECT_FACT_VARS:-false}"
 #   TMT sets True, False with capital letters, need to reset it to bash style
 [ "$SR_ANSIBLE_INJECT_FACT_VARS" = True ] && export SR_ANSIBLE_INJECT_FACT_VARS=true
 [ "$SR_ANSIBLE_INJECT_FACT_VARS" = False ] && export SR_ANSIBLE_INJECT_FACT_VARS=false
+# SR_ANSIBLE_POSIX_VERSION
+#   Version of ansible.posix collection to install
+#   We currently cannot use 2.2.0 because it is not compatible with el7
+SR_ANSIBLE_POSIX_VERSION="${SR_ANSIBLE_POSIX_VERSION:-2.1.0}"
 
 echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 echo "~~~ Environment Variables Definition - BEGIN"
