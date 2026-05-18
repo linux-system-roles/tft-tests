@@ -226,7 +226,7 @@ lsrEnableCallbackPlugins() {
     callback_path=ansible_collections/ansible/posix/plugins/callback
     if [ ! -f "$collection_path"/"$callback_path"/debug.py ] || [ ! -f "$collection_path"/"$callback_path"/profile_tasks.py ]; then
         ansible_posix=$(mktemp --directory -t ansible_posix-XXX)
-        cmd="ansible-galaxy collection install ansible.posix -p $ansible_posix -vv"
+        cmd="ansible-galaxy collection install ansible.posix==$SR_ANSIBLE_POSIX_VERSION -p $ansible_posix -vv"
         if lsrIsAnsibleCmdOptionSupported "ansible-galaxy collection install" "--force-with-deps"; then
             rlWaitForCmd "$cmd --force-with-deps" -m 5
         elif lsrIsAnsibleCmdOptionSupported "ansible-galaxy collection install" "--force"; then
