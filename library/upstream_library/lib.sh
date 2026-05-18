@@ -312,10 +312,29 @@ lsrGetNodeName() {
     sed --quiet --regexp-extended "s/(^$node_pat.*):$/\1/p" "$GUESTS_YML"
 }
 
+# The GUESTS_YML looks like this:
+# node1:
+#   ... many, many lines of metadata ...
+#   primary-address: 192.168.1.1
+#   ...
+# node2:
+#   ... many, many lines of metadata ...
+#   primary-address: 192.168.1.2
+#   ...
+# ... many, many lines of metadata ...
+# The sed command will first match lines beginning with non-space characters and ending with a colon.
+# These are assumed to be the node names.  The match will be stored in the hold space.
+# Then the command will match lines beginning with "primary-address:" and ending with a newline.
+# If the line matches, the hold space will be printed and the command will exit.  It is assumed
+# that the primary-address is the one corresponding to the current node in the hold space.
 lsrGetCurrNodeHostname() {
-    local ip_addr
+    local ip_addr ip_pattern
     ip_addr=$(hostname -I | awk '{print $1}')
-    grep "primary-address: $ip_addr$" "$GUESTS_YML" -B 10 | sed --quiet --regexp-extended 's/(^[^ ]*):$/\1/p'
+    ip_pattern=${ip_addr//./[.]}
+    sed --quiet --regexp-extended \
+        -e '/^[^ ]*:$/ { s/:$//; h; }' \
+        -e "/primary-address: ${ip_pattern}$/ { g; p; q; }" \
+        "$GUESTS_YML"
 }
 
 lsrGetNodeIp() {
