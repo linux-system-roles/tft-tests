@@ -220,25 +220,26 @@ lsrInstallDependencies() {
 
 lsrEnableCallbackPlugins() {
     local collection_path=$1
-    local cmd
+    local -a cmd
     local basename
+    local ansible_posix_path callback_path
     # Enable callback plugins for prettier ansible output
     callback_path=ansible_collections/ansible/posix/plugins/callback
     if [ ! -f "$collection_path"/"$callback_path"/debug.py ] || [ ! -f "$collection_path"/"$callback_path"/profile_tasks.py ]; then
-        ansible_posix=$(mktemp --directory -t ansible_posix-XXX)
-        cmd="ansible-galaxy collection install ansible.posix==$SR_ANSIBLE_POSIX_VERSION -p $ansible_posix -vv"
+        ansible_posix_path=$(mktemp --directory -t ansible_posix-XXX)
+        cmd=(ansible-galaxy collection install "${SR_ANSIBLE_POSIX_VERSION}" -p "$ansible_posix_path" -vv)
         if lsrIsAnsibleCmdOptionSupported "ansible-galaxy collection install" "--force-with-deps"; then
-            rlWaitForCmd "$cmd --force-with-deps" -m 5
+            rlWaitForCmd "${cmd[*]} --force-with-deps" -m 5
         elif lsrIsAnsibleCmdOptionSupported "ansible-galaxy collection install" "--force"; then
-            rlWaitForCmd "$cmd --force" -m 5
+            rlWaitForCmd "${cmd[*]} --force" -m 5
         else
-            rlWaitForCmd "$cmd" -m 5
+            rlWaitForCmd "${cmd[*]}" -m 5
         fi
         if [ ! -d "$1"/"$callback_path"/ ]; then
             rlRun "mkdir -p $collection_path/$callback_path"
         fi
-        rlRun "cp $ansible_posix/$callback_path/{debug.py,profile_tasks.py} $collection_path/$callback_path/"
-        rlRun "rm -rf $ansible_posix"
+        rlRun "cp $ansible_posix_path/$callback_path/{debug.py,profile_tasks.py} $collection_path/$callback_path/"
+        rlRun "rm -rf $ansible_posix_path"
     fi
     if lsrIsAnsibleEnvVarSupported ANSIBLE_CALLBACKS_ENABLED; then
         ANSIBLE_ENVS[ANSIBLE_CALLBACKS_ENABLED]="profile_tasks"

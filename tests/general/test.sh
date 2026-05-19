@@ -109,9 +109,10 @@ SR_ANSIBLE_INJECT_FACT_VARS="${SR_ANSIBLE_INJECT_FACT_VARS:-false}"
 [ "$SR_ANSIBLE_INJECT_FACT_VARS" = True ] && export SR_ANSIBLE_INJECT_FACT_VARS=true
 [ "$SR_ANSIBLE_INJECT_FACT_VARS" = False ] && export SR_ANSIBLE_INJECT_FACT_VARS=false
 # SR_ANSIBLE_POSIX_VERSION
-#   Version of ansible.posix collection to install
+#   Version of ansible.posix collection to install - this is the full version specifier
+#   e.g. 'ansible.posix<2.2.0' or 'ansible.posix==2.1.0'
 #   We currently cannot use 2.2.0 because it is not compatible with el7
-SR_ANSIBLE_POSIX_VERSION="${SR_ANSIBLE_POSIX_VERSION:-2.1.0}"
+SR_ANSIBLE_POSIX_VERSION="${SR_ANSIBLE_POSIX_VERSION:-"ansible.posix>=2.1.0,<2.2.0"}"
 
 echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 echo "~~~ Environment Variables Definition - BEGIN"
