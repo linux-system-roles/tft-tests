@@ -208,6 +208,14 @@ lsrInstallDependencies() {
     local collection_path=$2
     local coll_req_file="$1/meta/collection-requirements.yml"
     local coll_test_req_file="$1/tests/collection-requirements.yml"
+    if [ "$SR_ANSIBLE_VER" == "2.9" ]; then
+        # The collections in collection-requirements.yml require a newer
+        # ansible-core than 2.9, so they cannot be installed with ansible 2.9.
+        # Roles that support ansible 2.9 (EL7) vendor EL7-compatible modules,
+        # so these dependencies are not needed here.
+        rlLogInfo "Skipping installing collection dependencies with ansible 2.9"
+        return
+    fi
     for req_file in $coll_req_file $coll_test_req_file; do
         if [ ! -f "$req_file" ]; then
             rlLogInfo "Skipping installing dependencies from $req_file, this file doesn't exist"
