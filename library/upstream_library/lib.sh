@@ -208,7 +208,7 @@ lsrInstallDependencies() {
     local collection_path=$2
     local coll_req_file="$1/meta/collection-requirements.yml"
     local coll_test_req_file="$1/tests/collection-requirements.yml"
-    if [ "$SR_ANSIBLE_VER" == "2.9" ]; then
+    if [ "$SR_ANSIBLE_VER" == "2.9" ] && grep -q fedora.linux_system_roles "$coll_req_file" "$coll_test_req_file"; then
         # The collections in collection-requirements.yml require a newer
         # ansible than 2.9, so they cannot be installed with ansible 2.9.
         # Roles that support ansible 2.9 (EL7) vendor EL7-compatible modules,
