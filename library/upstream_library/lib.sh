@@ -215,7 +215,6 @@ lsrInstallDependencies() {
         # so these dependencies are not needed here.
         rlLogInfo "With ansible 2.9, install only fedora.linux_system_roles"
         rlWaitForCmd "ansible-galaxy collection install -p $collection_path -vv fedora.linux_system_roles" -m 5
-        return
     fi
     for req_file in $coll_req_file $coll_test_req_file; do
         if [ ! -f "$req_file" ]; then
