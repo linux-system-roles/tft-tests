@@ -214,14 +214,20 @@ lsrInstallDependencies() {
         # Roles that support ansible 2.9 (EL7) vendor EL7-compatible modules,
         # so these dependencies are not needed here.
         rlLogInfo "With ansible 2.9, install only fedora.linux_system_roles"
-        rlWaitForCmd "ansible-galaxy collection install -p $collection_path -vv fedora.linux_system_roles" -m 5
+        if ! rlWaitForCmd "ansible-galaxy collection install -p $collection_path -vv fedora.linux_system_roles" -m 5; then
+            ansible-galaxy collection install -p "$collection_path" -vvv fedora.linux_system_roles
+            rlDie "Failed to install fedora.linux_system_roles"
+        fi
     fi
     for req_file in $coll_req_file $coll_test_req_file; do
         if [ ! -f "$req_file" ]; then
             rlLogInfo "Skipping installing dependencies from $req_file, this file doesn't exist"
             continue
         fi
-        rlWaitForCmd "ansible-galaxy collection install -p $collection_path -vv -r $req_file" -m 5
+        if ! rlWaitForCmd "ansible-galaxy collection install -p $collection_path -vv -r $req_file" -m 5; then
+            ansible-galaxy collection install -p "$collection_path" -vvv -r "$req_file"
+            rlDie "Failed to install dependencies from $req_file"
+        fi
         rlLogInfo "$req_file Dependencies were successfully installed"
     done
 }
