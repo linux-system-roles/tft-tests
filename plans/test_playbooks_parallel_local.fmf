@@ -19,6 +19,8 @@ provision:
       # 4GB memory for the mssql role
       memory: ">= 4096 MB"
 environment:
+    # Timeout in seconds for any API calls made by ansible-galaxy.
+    ANSIBLE_GALAXY_TIMEOUT: 300
     SR_ANSIBLE_VER: 2.17
     SR_REPO_NAME: ""
     SR_PYTHON_VERSION: 3.12

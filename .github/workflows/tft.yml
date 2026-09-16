@@ -58,7 +58,7 @@ jobs:
           - mssql
     steps:
       - name: Checkout the ${{ matrix.test_role }} repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           repository: ${{ github.repository_owner }}/${{ matrix.test_role }}
           ref: main
@@ -146,7 +146,7 @@ jobs:
         if: |
           contains(needs.prepare_vars.outputs.postfix_supported_platforms, matrix.platform)
           || contains(needs.prepare_vars.outputs.mssql_supported_platforms, matrix.platform)
-        uses: myrotvorets/set-commit-status-action@master
+        uses: myrotvorets/set-commit-status-action@36373b7607fe80093962a6fefbd14cadb829f7de
         with:
           sha: ${{ needs.head_sha.outputs.head_sha }}
           status: pending
@@ -158,7 +158,7 @@ jobs:
         if: |
           !contains(needs.prepare_vars.outputs.postfix_supported_platforms, matrix.platform)
           && !contains(needs.prepare_vars.outputs.mssql_supported_platforms, matrix.platform)
-        uses: myrotvorets/set-commit-status-action@master
+        uses: myrotvorets/set-commit-status-action@36373b7607fe80093962a6fefbd14cadb829f7de
         with:
           sha: ${{ needs.head_sha.outputs.head_sha }}
           status: success
@@ -167,7 +167,7 @@ jobs:
           targetUrl: ""
 
       - name: Run general plan against postfix
-        uses: sclorg/testing-farm-as-github-action@v3
+        uses: sclorg/testing-farm-as-github-action@270f0d1d89dad513588fb5cc2cdd512c3459f3fe
         continue-on-error: true
         if: contains(needs.prepare_vars.outputs.postfix_supported_platforms, matrix.platform)
         with:
@@ -198,7 +198,7 @@ jobs:
 
       # Running separately to avoid using SR_REPO_NAME=postfix in plans related to other roles
       - name: Run mssql_ha plan against mssql
-        uses: sclorg/testing-farm-as-github-action@v3
+        uses: sclorg/testing-farm-as-github-action@270f0d1d89dad513588fb5cc2cdd512c3459f3fe
         if: contains(needs.prepare_vars.outputs.mssql_supported_platforms, matrix.platform)
         with:
           git_url: ${{ github.event.repository.html_url }}
@@ -227,7 +227,7 @@ jobs:
           tmt_plan_filter: "tag:mssql"
 
       - name: Set final commit status
-        uses: myrotvorets/set-commit-status-action@master
+        uses: myrotvorets/set-commit-status-action@36373b7607fe80093962a6fefbd14cadb829f7de
         if: |
           always()
           && (contains(needs.prepare_vars.outputs.postfix_supported_platforms, matrix.platform)
