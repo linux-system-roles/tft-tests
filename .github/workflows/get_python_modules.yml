@@ -133,7 +133,7 @@ jobs:
         test_role: ${{ fromJSON(needs.prepare_run_vars.outputs.TEST_ROLES) }}
     steps:
       - name: Checkout the ${{ matrix.test_role }} repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           repository: ${{ matrix.test_role == 'sshd' && 'willshersystems' || 'linux-system-roles' }}/${{ matrix.test_role == 'sshd' && 'ansible-sshd' || matrix.test_role }}
           ref: main
@@ -219,7 +219,7 @@ jobs:
           echo "SR_ARTIFACTS_URL=$SR_ARTIFACTS_URL" >> $GITHUB_OUTPUT
 
       - name: Set commit status as pending
-        uses: myrotvorets/set-commit-status-action@master
+        uses: myrotvorets/set-commit-status-action@36373b7607fe80093962a6fefbd14cadb829f7de
         with:
           sha: ${{ needs.prepare_run_vars.outputs.head_sha }}
           status: pending
@@ -228,7 +228,7 @@ jobs:
           targetUrl: ""
 
       - name: Run general plan against ${{ matrix.test_role }}
-        uses: sclorg/testing-farm-as-github-action@v3
+        uses: sclorg/testing-farm-as-github-action@270f0d1d89dad513588fb5cc2cdd512c3459f3fe
         continue-on-error: true
         with:
           git_url: ${{ github.event.repository.html_url }}
@@ -259,7 +259,7 @@ jobs:
           tmt_plan_filter: "tag:general"
 
       - name: Set final commit status
-        uses: myrotvorets/set-commit-status-action@master
+        uses: myrotvorets/set-commit-status-action@36373b7607fe80093962a6fefbd14cadb829f7de
         if: |
           always()
         with:
