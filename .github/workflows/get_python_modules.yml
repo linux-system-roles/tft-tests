@@ -228,7 +228,7 @@ jobs:
           targetUrl: ""
 
       - name: Run general plan against ${{ matrix.test_role }}
-        uses: sclorg/testing-farm-as-github-action@270f0d1d89dad513588fb5cc2cdd512c3459f3fe
+        uses: sclorg/testing-farm-as-github-action@230555baceb860aa468d216f1822974836b965d1
         continue-on-error: true
         with:
           git_url: ${{ github.event.repository.html_url }}
