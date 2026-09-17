@@ -324,21 +324,22 @@ lsrInstallDependencies() {
 
 lsrEnableCallbackPlugins() {
     local collection_path=$1
-    local basename callback_path commit_hash filename url
+    local basename callback_path commit_hash filename url force
+    force="${2:-true}"  # force installation of callbacks for ansible version
     # Enable callback plugins for prettier ansible output
-    callback_path=ansible_collections/ansible/posix/plugins/callback
-    if [ ! -f "$collection_path"/"$callback_path"/debug.py ] || [ ! -f "$collection_path"/"$callback_path"/profile_tasks.py ]; then
+    callback_path="$collection_path/ansible_collections/ansible/posix/plugins/callback"
+    if [ "$force" = true ] || [ ! -f "$callback_path/debug.py" ] || [ ! -f "$callback_path/profile_tasks.py" ]; then
         if [ "$SR_ANSIBLE_VER" = 2.9 ]; then
             commit_hash=d792d39716f9d46c5691ca89190a868c4a46d6ef
         else
             commit_hash=e98d9a0756458be1ac710988498000973889075c
         fi
-        if [ ! -d "$1"/"$callback_path"/ ]; then
-            rlRun "mkdir -p $collection_path/$callback_path"
+        if [ ! -d "$callback_path" ]; then
+            rlRun "mkdir -p $callback_path"
         fi
         for filename in debug.py profile_tasks.py; do
             url="https://raw.githubusercontent.com/ansible-collections/ansible.posix/$commit_hash/plugins/callback/$filename"
-            if ! rlRun "curl -L --fail --silent --show-error -o $collection_path/$callback_path/$filename $url"; then
+            if ! rlRun "curl -L --fail --silent --show-error -o $callback_path/$filename $url"; then
                 rlDie "Failed to download ansible.posix callback plugin $filename"
             fi
         done
@@ -351,8 +352,8 @@ lsrEnableCallbackPlugins() {
     ANSIBLE_ENVS[ANSIBLE_STDOUT_CALLBACK]="debug"
     # grab the lsr_report_errors.py callback plugin
     basename="$(basename "$SR_REPORT_ERRORS_URL")"
-    curl -L -s -o "$collection_path/$callback_path/$basename" "$SR_REPORT_ERRORS_URL"
-    ANSIBLE_ENVS[ANSIBLE_CALLBACK_PLUGINS]="$collection_path/$callback_path"
+    curl -L -s -o "$callback_path/$basename" "$SR_REPORT_ERRORS_URL"
+    ANSIBLE_ENVS[ANSIBLE_CALLBACK_PLUGINS]="$callback_path"
 }
 
 lsrConvertToCollection() {
