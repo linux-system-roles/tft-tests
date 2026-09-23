@@ -302,14 +302,6 @@ lsrInstallDependencies() {
     local coll_req_file="$1/meta/collection-requirements.yml"
     local coll_test_req_file="$1/tests/collection-requirements.yml"
     # use ANSIBLE_GALAXY_TIMEOUT to set timeout for lsrAnsibleGalaxy
-    if [ "$SR_ANSIBLE_VER" == "2.9" ] && grep -q fedora.linux_system_roles "$coll_req_file" "$coll_test_req_file"; then
-        # install just the fedora.linux_system_roles collection without any dependencies
-        if ! lsrAnsibleGalaxy collection install -p "$collection_path" -vv -n fedora.linux_system_roles; then
-            rlDie "Failed to install dependencies from $req_file"
-        fi
-        rlLogInfo "$req_file Dependencies were successfully installed"
-        return 0
-    fi
     for req_file in $coll_req_file $coll_test_req_file; do
         if [ ! -f "$req_file" ]; then
             rlLogInfo "Skipping installing dependencies from $req_file, this file doesn't exist"
