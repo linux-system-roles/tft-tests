@@ -198,11 +198,11 @@ lsrIsAnsibleCmdOptionSupported() {
 lsrAnsibleGalaxy() {
     local ansible_galaxy_command ansible_module_path galaxy_path patch_python
 
-    if [[ ! ${ANSIBLE_GALAXY_TIMEOUT:-300} =~ ^[1-9][0-9]*$ ]]; then
+    if [[ ! ${ANSIBLE_GALAXY_TIMEOUT:-120} =~ ^[1-9][0-9]*$ ]]; then
         rlLogError "ANSIBLE_GALAXY_TIMEOUT must be a positive integer"
         return 2
     fi
-    export ANSIBLE_GALAXY_TIMEOUT=${ANSIBLE_GALAXY_TIMEOUT:-300}
+    export ANSIBLE_GALAXY_TIMEOUT=${ANSIBLE_GALAXY_TIMEOUT:-120}
 
     ansible_module_path=$(ansible-galaxy --version | sed -n \
         's/^[[:space:]]*ansible python module location = //p' | head -1)
@@ -242,7 +242,7 @@ import_pattern = re.compile(
 wrapper = """\
 {marker}
 def open_url(*args, **kwargs):
-    kwargs['timeout'] = int(__import__('os').environ.get('ANSIBLE_GALAXY_TIMEOUT', 60))
+    kwargs['timeout'] = int(__import__('os').environ.get('ANSIBLE_GALAXY_TIMEOUT', 120))
     return _lsr_open_url(*args, **kwargs)
 """.format(marker=marker)
 
@@ -283,8 +283,18 @@ for root, dirs, files in os.walk(galaxy_path):
 PY
 
     printf -v ansible_galaxy_command '%q ' ansible-galaxy "$@"
-    rlWaitForCmd "$ansible_galaxy_command" \
-        -t "${ANSIBLE_GALAXY_TIMEOUT:-60}" -d 30 -m 3
+    # ANSIBLE_GALAXY_TIMEOUT is the timeout for each open_url call
+    # we don't know exactly how many open_url calls galaxy will
+    # make, so guess
+    # the timeout is the total timeout including retries and delays
+    # basically - retry 3 times, wait $ANSIBLE_GALAXY_TIMEOUT each try
+    # wait 30 seconds between retries
+    local timeout delay retries open_url_calls
+    delay=30
+    retries=3
+    open_url_calls=6
+    timeout=$(( ${ANSIBLE_GALAXY_TIMEOUT:-120} * open_url_calls * retries + delay * (retries - 1) + retries ))
+    rlWaitForCmd "$ansible_galaxy_command" -t "$timeout" -d "$delay" -m "$retries"
 }
 
 lsrGetCollectionPath() {
