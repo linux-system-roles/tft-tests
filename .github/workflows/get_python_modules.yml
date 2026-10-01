@@ -219,7 +219,7 @@ jobs:
           echo "SR_ARTIFACTS_URL=$SR_ARTIFACTS_URL" >> $GITHUB_OUTPUT
 
       - name: Set commit status as pending
-        uses: myrotvorets/set-commit-status-action@36373b7607fe80093962a6fefbd14cadb829f7de
+        uses: myrotvorets/set-commit-status-action@b374c10a0639fcecd00109b579be23e4878a9b5f
         with:
           sha: ${{ needs.prepare_run_vars.outputs.head_sha }}
           status: pending
@@ -259,7 +259,7 @@ jobs:
           tmt_plan_filter: "tag:general"
 
       - name: Set final commit status
-        uses: myrotvorets/set-commit-status-action@36373b7607fe80093962a6fefbd14cadb829f7de
+        uses: myrotvorets/set-commit-status-action@b374c10a0639fcecd00109b579be23e4878a9b5f
         if: |
           always()
         with:
