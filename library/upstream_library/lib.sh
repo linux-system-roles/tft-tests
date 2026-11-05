@@ -26,7 +26,11 @@ lsrLabBosRepoWorkaround() {
 
 lsrInstallAnsible() {
     # Hardcode to the only supported version on later ELs
-    if rlIsFedora '>=43'; then
+    if rlIsFedora '>=45'; then
+        SR_PYTHON_VERSION=3.15
+        # there is currently no python3.15-pip package on F45
+        SR_PYTHON_PIP_VERSION=3
+    elif rlIsFedora '>=43'; then
         SR_PYTHON_VERSION=3.14
     elif rlIsFedora '>=41'; then
         SR_PYTHON_VERSION=3.13
@@ -40,8 +44,13 @@ lsrInstallAnsible() {
         SR_ANSIBLE_VER=2.9
     fi
 
+    # use python version for pip by default
+    if [ -z "${SR_PYTHON_PIP_VERSION:-}" ]; then
+        SR_PYTHON_PIP_VERSION="$SR_PYTHON_VERSION"
+    fi
+
     if rlIsFedora || (rlIsRHELLike ">7" && [ "$SR_ANSIBLE_VER" != "2.9" ]); then
-        rlRun "dnf install python$SR_PYTHON_VERSION-pip -y"
+        rlRun "dnf install python$SR_PYTHON_PIP_VERSION-pip -y"
         # install ansible dependencies first so that we do not install pre-release versions of them
         rlRun "python$SR_PYTHON_VERSION -m pip install passlib"
         # install possible pre-release version of ansible-core
